@@ -1,0 +1,366 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>GhostLedger - AI Assistant</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;family=JetBrains+Mono:wght@400;500&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    "colors": {
+                        "primary": "#fbfffa",
+                        "on-primary-fixed-variant": "#00513c",
+                        "on-secondary-fixed-variant": "#474746",
+                        "surface-tint": "#00e1ab",
+                        "primary-container": "#00ffc2",
+                        "inverse-primary": "#006c50",
+                        "tertiary-fixed": "#ffe253",
+                        "surface-container": "#122131",
+                        "surface-container-lowest": "#010f1f",
+                        "on-surface-variant": "#b9cbc1",
+                        "surface-container-high": "#1c2b3c",
+                        "on-secondary-fixed": "#1c1b1b",
+                        "secondary-fixed": "#e5e2e1",
+                        "on-error-container": "#ffdad6",
+                        "secondary-container": "#474746",
+                        "tertiary-fixed-dim": "#e2c62e",
+                        "on-tertiary": "#393000",
+                        "outline-variant": "#3a4a43",
+                        "on-surface": "#d4e4fa",
+                        "surface-bright": "#2c3a4c",
+                        "surface-container-highest": "#273647",
+                        "on-tertiary-fixed-variant": "#534600",
+                        "primary-fixed": "#36ffc4",
+                        "background": "#051424",
+                        "error-container": "#93000a",
+                        "on-tertiary-container": "#746300",
+                        "secondary": "#c8c6c5",
+                        "error": "#ffb4ab",
+                        "on-tertiary-fixed": "#211b00",
+                        "on-secondary-container": "#b7b5b4",
+                        "on-secondary": "#313030",
+                        "on-error": "#690005",
+                        "on-primary-fixed": "#002116",
+                        "on-primary": "#003828",
+                        "outline": "#83958c",
+                        "surface": "#051424",
+                        "inverse-on-surface": "#233143",
+                        "surface-dim": "#051424",
+                        "surface-container-low": "#0d1c2d",
+                        "on-background": "#d4e4fa",
+                        "tertiary-container": "#ffe149",
+                        "inverse-surface": "#d4e4fa",
+                        "tertiary": "#fffeff",
+                        "on-primary-container": "#007255",
+                        "secondary-fixed-dim": "#c8c6c5",
+                        "primary-fixed-dim": "#00e1ab",
+                        "surface-variant": "#273647"
+                    },
+                    "borderRadius": {
+                        "DEFAULT": "0.125rem",
+                        "lg": "0.25rem",
+                        "xl": "0.5rem",
+                        "full": "0.75rem"
+                    },
+                    "spacing": {
+                        "unit": "4px",
+                        "container-max": "1200px",
+                        "gutter": "16px",
+                        "margin-desktop": "32px",
+                        "margin-mobile": "16px"
+                    },
+                    "fontFamily": {
+                        "headline-md": ["Inter"],
+                        "display-lg": ["Inter"],
+                        "body-base": ["Inter"],
+                        "data-mono": ["JetBrains Mono"],
+                        "label-xs": ["JetBrains Mono"]
+                    },
+                    "fontSize": {
+                        "headline-md": ["20px", { "lineHeight": "1.4", "letterSpacing": "-0.01em", "fontWeight": "500" }],
+                        "display-lg": ["32px", { "lineHeight": "1.2", "letterSpacing": "-0.02em", "fontWeight": "600" }],
+                        "body-base": ["14px", { "lineHeight": "1.6", "letterSpacing": "0em", "fontWeight": "400" }],
+                        "data-mono": ["14px", { "lineHeight": "1.4", "letterSpacing": "-0.01em", "fontWeight": "500" }],
+                        "label-xs": ["11px", { "lineHeight": "1", "letterSpacing": "0.05em", "fontWeight": "400" }]
+                    }
+                }
+            }
+        }
+    </script>
+<style>
+        body {
+            background-color: #051424; /* background */
+            color: #d4e4fa; /* on-background */
+            font-family: 'Inter', sans-serif;
+            margin: 0;
+            overflow-x: hidden;
+            display: flex;
+        }
+
+        /* Custom Scrollbar for Chat */
+        .chat-container::-webkit-scrollbar {
+            width: 4px;
+        }
+        .chat-container::-webkit-scrollbar-track {
+            background: transparent;
+        }
+        .chat-container::-webkit-scrollbar-thumb {
+            background: #273647; /* surface-container-highest */
+            border-radius: 2px;
+        }
+
+        /* Markdown Styles for AI Messages */
+        .prose code {
+            font-family: 'JetBrains Mono', monospace;
+            background-color: #122131; /* surface-container */
+            padding: 2px 4px;
+            border-radius: 2px;
+            border: 1px solid #3a4a43; /* outline-variant */
+            color: #00e1ab; /* primary-fixed-dim */
+        }
+        .prose pre {
+            background-color: #010f1f; /* surface-container-lowest */
+            padding: 16px;
+            border-radius: 4px;
+            border: 1px solid #3a4a43;
+            overflow-x: auto;
+            margin: 12px 0;
+        }
+        .prose pre code {
+            background-color: transparent;
+            border: none;
+            padding: 0;
+            color: #d4e4fa; /* on-surface */
+        }
+        .prose h3 {
+            font-size: 16px;
+            font-weight: 600;
+            margin-top: 16px;
+            margin-bottom: 8px;
+            color: #fbfffa; /* primary */
+        }
+        .prose ul {
+            list-style-type: none;
+            padding-left: 0;
+            margin: 12px 0;
+        }
+        .prose li {
+            position: relative;
+            padding-left: 16px;
+            margin-bottom: 8px;
+        }
+        .prose li::before {
+            content: '>';
+            position: absolute;
+            left: 0;
+            color: #00e1ab; /* primary-fixed-dim */
+            font-family: 'JetBrains Mono', monospace;
+        }
+    </style>
+</head>
+<body class="bg-background text-on-background h-screen antialiased flex">
+<!-- Shared Component: SideNavBar -->
+<nav class="bg-surface-container-low dark:bg-surface-container-low border-r border-outline-variant dark:border-outline-variant h-screen w-64 fixed left-0 top-0 flex flex-col h-full py-gutter px-4 z-20 hidden md:flex">
+<!-- Header / Brand -->
+<div class="mb-8 flex flex-col pt-4">
+<div class="font-headline-md text-headline-md font-bold text-on-surface dark:text-on-surface mb-6">GhostLedger</div>
+<div class="flex items-center gap-3 bg-surface-container-highest p-3 rounded-DEFAULT border border-outline-variant">
+<div class="w-10 h-10 rounded-full bg-surface-bright flex items-center justify-center overflow-hidden border border-outline-variant">
+<img alt="User Profile" class="w-full h-full object-cover" data-alt="A highly stylized, minimalist digital avatar portrait. The image features a sleek, abstract representation of a human profile constructed from glowing green neon lines against a deep, pure black void. The lighting is stark and technical, emphasizing precision and anonymity. The aesthetic is strictly dark mode, cyberpunk-adjacent, but clean and professional, lacking any extraneous decorative elements." src="https://lh3.googleusercontent.com/aida-public/AB6AXuCNcLCfqMPqwBpZRGw2c--Ez61MQAMBSXMNOsSF_zEyOggDG4zOGRAeOWomx-3esyoGSgg2YfasMJRiXgtQxR4F6tqmyRpP23iBnlJ2nLbyd64L-RQPBybcwYynqWGZaqpwlGA3KPHVDl5YQjhAx5vQpMzFUNTqVXNdIh2sGHb7lX2AeTKOkcSGjmjZ7bmek1Szsk07GTNCT6_SArEq9kmL2RmElD5dBghltsG6HjD8Wc4XPoHvW4OGq-fwQ0qZO1W3B_QL0AavDCU"/>
+</div>
+<div>
+<div class="font-headline-md text-headline-md text-primary-fixed-dim dark:text-primary-fixed-dim font-semibold">$124,500.00</div>
+<div class="font-label-xs text-label-xs text-on-surface-variant uppercase tracking-widest mt-1">Current Net Worth</div>
+</div>
+</div>
+<button class="mt-4 w-full bg-primary-fixed-dim hover:bg-primary-container text-on-primary font-body-base text-body-base font-semibold py-2 px-4 rounded-DEFAULT transition-colors duration-150 flex items-center justify-center gap-2">
+<span class="material-symbols-outlined text-[18px]">add</span>
+                Add Transaction
+            </button>
+</div>
+<!-- Navigation Links -->
+<div class="flex-1 overflow-y-auto">
+<ul class="space-y-1">
+<li>
+<a class="flex items-center gap-3 text-on-surface-variant font-medium pl-4 py-2 hover:bg-surface-container-high dark:hover:bg-surface-container-high transition-colors duration-150 rounded-DEFAULT" href="#">
+<span class="material-symbols-outlined">dashboard</span>
+<span class="font-body-base text-body-base">Dashboard</span>
+</a>
+</li>
+<li>
+<a class="flex items-center gap-3 text-on-surface-variant font-medium pl-4 py-2 hover:bg-surface-container-high dark:hover:bg-surface-container-high transition-colors duration-150 rounded-DEFAULT" href="#">
+<span class="material-symbols-outlined">account_balance_wallet</span>
+<span class="font-body-base text-body-base">Ledger</span>
+</a>
+</li>
+<li>
+<!-- ACTIVE STATE -->
+<a class="flex items-center gap-3 text-primary-fixed-dim font-bold border-l-2 border-primary-fixed-dim pl-4 py-2 bg-surface-container-highest bg-opacity-30" href="#">
+<span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1;">smart_toy</span>
+<span class="font-body-base text-body-base">AI Assistant</span>
+</a>
+</li>
+<li>
+<a class="flex items-center gap-3 text-on-surface-variant font-medium pl-4 py-2 hover:bg-surface-container-high dark:hover:bg-surface-container-high transition-colors duration-150 rounded-DEFAULT" href="#">
+<span class="material-symbols-outlined">settings</span>
+<span class="font-body-base text-body-base">Settings</span>
+</a>
+</li>
+</ul>
+</div>
+<!-- Footer -->
+<div class="mt-auto pt-4 border-t border-outline-variant">
+<a class="flex items-center gap-3 text-on-surface-variant font-medium pl-4 py-2 hover:bg-surface-container-high dark:hover:bg-surface-container-high transition-colors duration-150 rounded-DEFAULT" href="#">
+<span class="material-symbols-outlined">logout</span>
+<span class="font-body-base text-body-base">Logout</span>
+</a>
+</div>
+</nav>
+<!-- Main Content Area -->
+<main class="flex-1 flex flex-col md:ml-64 h-screen relative bg-background">
+<!-- Header for Mobile / Chat Header -->
+<header class="h-16 border-b border-outline-variant flex items-center px-4 md:px-margin-desktop bg-surface-container-lowest z-10 shrink-0">
+<button class="md:hidden mr-4 text-on-surface-variant hover:text-primary transition-colors">
+<span class="material-symbols-outlined">menu</span>
+</button>
+<div class="flex items-center gap-3">
+<div class="w-8 h-8 rounded-DEFAULT bg-primary-fixed-dim bg-opacity-10 border border-primary-fixed-dim flex items-center justify-center text-primary-fixed-dim">
+<span class="material-symbols-outlined text-[18px]" style="font-variation-settings: 'FILL' 1;">smart_toy</span>
+</div>
+<div>
+<h1 class="font-headline-md text-headline-md font-semibold text-primary">Ghost AI</h1>
+<p class="font-label-xs text-label-xs text-primary-fixed-dim opacity-80 mt-1 uppercase tracking-widest">System Ready</p>
+</div>
+</div>
+<div class="ml-auto flex items-center gap-4">
+<button class="text-on-surface-variant hover:text-primary transition-colors">
+<span class="material-symbols-outlined">history</span>
+</button>
+<button class="text-on-surface-variant hover:text-primary transition-colors">
+<span class="material-symbols-outlined">more_vert</span>
+</button>
+</div>
+</header>
+<!-- Chat History Area -->
+<div class="flex-1 overflow-y-auto chat-container p-4 md:p-margin-desktop pb-32 flex flex-col gap-8 scroll-smooth" id="chat-history">
+<!-- Intro State (If empty, but shown here for layout) -->
+<div class="flex flex-col items-center justify-center h-full text-center opacity-50 hidden" id="empty-state">
+<span class="material-symbols-outlined text-[48px] text-on-surface-variant mb-4">analytics</span>
+<h2 class="font-headline-md text-headline-md text-on-surface mb-2">How can I assist with your ledger today?</h2>
+<p class="font-body-base text-body-base text-on-surface-variant max-w-md">Query transactions, analyze spending patterns, or run forecasts based on your current data.</p>
+</div>
+<!-- User Message -->
+<div class="flex flex-col items-end w-full">
+<div class="max-w-[80%] md:max-w-[60%] flex gap-3 flex-row-reverse">
+<div class="w-8 h-8 rounded-full bg-surface-bright flex-shrink-0 flex items-center justify-center border border-outline-variant overflow-hidden">
+<img alt="User Avatar" class="w-full h-full object-cover" data-alt="A highly stylized, minimalist digital avatar portrait. The image features a sleek, abstract representation of a human profile constructed from glowing green neon lines against a deep, pure black void. The lighting is stark and technical, emphasizing precision and anonymity." src="https://lh3.googleusercontent.com/aida-public/AB6AXuDdJVBzt9RJ4BbBFqgcEdIlpjBD9uc-ZzJ0VpJZlof6E5mp38nS6VoLGmI_OtDVjFzwAzT8Q1643-UAB1cAXIDR7AOrJ5W5AuttcDq9-TUOLb8Fr4NKARh-Gzndked59HiUZmVFyekraPOnxDRj844MAIKgdBG8hyfAcRIrLgE536Py-E7GgTATUelX6VHm__6q6UuOdKpGHU2OGrLBuNoi2BxUrkAQIhFMbCUUztOCY0nVQ0FzHQdDrXCQtWS-EPaYCU0kAU38cLI"/>
+</div>
+<div class="bg-surface-container-high border border-outline-variant rounded-DEFAULT rounded-tr-none px-4 py-3 font-body-base text-body-base text-on-surface">
+                        Analyze my subscriptions and calculate the current monthly burn rate.
+                    </div>
+</div>
+<div class="font-label-xs text-label-xs text-on-surface-variant mt-2 mr-11">10:42 AM</div>
+</div>
+<!-- AI Message -->
+<div class="flex flex-col items-start w-full">
+<div class="max-w-[90%] md:max-w-[70%] flex gap-3">
+<div class="w-8 h-8 rounded-DEFAULT bg-primary-fixed-dim bg-opacity-10 flex-shrink-0 flex items-center justify-center border border-primary-fixed-dim text-primary-fixed-dim">
+<span class="material-symbols-outlined text-[18px]" style="font-variation-settings: 'FILL' 1;">smart_toy</span>
+</div>
+<div class="bg-surface-container border border-outline-variant rounded-DEFAULT rounded-tl-none px-5 py-4 font-body-base text-body-base text-on-surface prose w-full">
+<p class="mb-4">I've analyzed your recurring transactions tagged as 'Subscription' over the last 30 days. Here is your current burn rate breakdown:</p>
+<div class="bg-surface-container-lowest border border-outline-variant p-4 rounded-DEFAULT mb-4">
+<div class="flex justify-between items-center mb-2">
+<span class="text-on-surface-variant font-label-xs tracking-widest uppercase">Total Monthly Burn</span>
+<span class="font-data-mono text-[18px] text-error font-semibold">-$428.50</span>
+</div>
+<div class="w-full h-[2px] bg-outline-variant mt-3">
+<div class="h-full bg-error w-[100%]"></div>
+</div>
+</div>
+<h3>Top Contributors</h3>
+<ul class="font-data-mono text-data-mono">
+<li class="flex justify-between"><span>AWS Cloud Services</span> <span>$145.00</span></li>
+<li class="flex justify-between"><span>GitHub Enterprise</span> <span>$99.00</span></li>
+<li class="flex justify-between"><span>Vercel Pro</span> <span>$60.00</span></li>
+<li class="flex justify-between"><span>OpenAI API</span> <span>~45.50</span></li>
+</ul>
+<p class="mt-4 text-on-surface-variant text-sm border-l-2 border-primary-fixed-dim pl-3 py-1">Insight: Your AWS spend has increased 12% compared to last month. Would you like me to drill down into the specific services driving this increase?</p>
+</div>
+</div>
+<div class="font-label-xs text-label-xs text-on-surface-variant mt-2 ml-11">10:42 AM · 1.2s</div>
+</div>
+<!-- Typing Indicator (Hidden by default, used for interaction) -->
+<div class="flex flex-col items-start w-full hidden" id="typing-indicator">
+<div class="flex gap-3">
+<div class="w-8 h-8 rounded-DEFAULT bg-primary-fixed-dim bg-opacity-10 flex-shrink-0 flex items-center justify-center border border-primary-fixed-dim text-primary-fixed-dim animate-pulse">
+<span class="material-symbols-outlined text-[18px]">smart_toy</span>
+</div>
+<div class="bg-surface-container border border-outline-variant rounded-DEFAULT rounded-tl-none px-4 py-3 flex items-center gap-1">
+<div class="w-2 h-2 bg-on-surface-variant rounded-full animate-bounce" style="animation-delay: 0ms"></div>
+<div class="w-2 h-2 bg-on-surface-variant rounded-full animate-bounce" style="animation-delay: 150ms"></div>
+<div class="w-2 h-2 bg-on-surface-variant rounded-full animate-bounce" style="animation-delay: 300ms"></div>
+</div>
+</div>
+</div>
+<!-- Anchor for auto-scroll -->
+<div id="chat-anchor"></div>
+</div>
+<!-- Fixed Bottom Input Area -->
+<div class="absolute bottom-0 left-0 w-full bg-gradient-to-t from-background via-background to-transparent pt-10 pb-6 px-4 md:px-margin-desktop z-10">
+<div class="max-w-4xl mx-auto flex flex-col gap-3">
+<!-- Helper Tags -->
+<div class="flex flex-wrap gap-2 mb-1">
+<button class="bg-surface-container hover:bg-surface-container-high border border-outline-variant text-on-surface font-label-xs text-label-xs uppercase tracking-wider px-3 py-1.5 rounded-DEFAULT transition-colors flex items-center gap-1.5" onclick="fillInput('Analyze subscriptions')">
+<span class="material-symbols-outlined text-[14px] text-primary-fixed-dim">analytics</span>
+                        Analyze subscriptions
+                    </button>
+<button class="bg-surface-container hover:bg-surface-container-high border border-outline-variant text-on-surface font-label-xs text-label-xs uppercase tracking-wider px-3 py-1.5 rounded-DEFAULT transition-colors flex items-center gap-1.5" onclick="fillInput('Calculate burn rate')">
+<span class="material-symbols-outlined text-[14px] text-error">trending_down</span>
+                        Burn rate
+                    </button>
+<button class="bg-surface-container hover:bg-surface-container-high border border-outline-variant text-on-surface font-label-xs text-label-xs uppercase tracking-wider px-3 py-1.5 rounded-DEFAULT transition-colors flex items-center gap-1.5" onclick="fillInput('Find unusual transactions')">
+<span class="material-symbols-outlined text-[14px] text-tertiary-fixed-dim">warning</span>
+                        Anomalies
+                    </button>
+</div>
+<!-- Input Box -->
+<div class="relative flex items-end bg-surface-container-lowest border border-outline-variant rounded-DEFAULT focus-within:border-primary-fixed-dim transition-colors shadow-[0_4px_24px_rgba(0,0,0,0.5)]">
+<textarea class="w-full bg-transparent border-none focus:ring-0 text-on-surface font-body-base text-body-base placeholder-on-surface-variant p-4 resize-none overflow-hidden max-h-32" id="chat-input" oninput="this.style.height = ''; this.style.height = this.scrollHeight + 'px'" placeholder="Query ledger data..." rows="1"></textarea>
+<div class="flex items-center gap-2 pr-3 pb-3 shrink-0">
+<button class="w-8 h-8 flex items-center justify-center text-on-surface-variant hover:text-primary transition-colors rounded-DEFAULT">
+<span class="material-symbols-outlined text-[20px]">attach_file</span>
+</button>
+<button class="w-10 h-10 bg-primary-fixed-dim hover:bg-primary-container text-on-primary flex items-center justify-center rounded-DEFAULT transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
+<span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1;">send</span>
+</button>
+</div>
+</div>
+<div class="text-center font-label-xs text-label-xs text-outline tracking-wider mt-1">
+                    AI responses may contain inaccuracies. Verify critical data.
+                </div>
+</div>
+</div>
+</main>
+<script>
+        function fillInput(text) {
+            const input = document.getElementById('chat-input');
+            input.value = text;
+            input.focus();
+            // Trigger auto-resize
+            input.style.height = ''; 
+            input.style.height = input.scrollHeight + 'px';
+        }
+
+        // Auto-scroll on load
+        window.onload = function() {
+            document.getElementById('chat-anchor').scrollIntoView();
+        }
+    </script>
+</body></html>

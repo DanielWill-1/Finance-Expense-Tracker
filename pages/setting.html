@@ -1,0 +1,357 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>GhostLedger - Settings</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    "colors": {
+                        "primary": "#fbfffa",
+                        "on-primary-fixed-variant": "#00513c",
+                        "on-secondary-fixed-variant": "#474746",
+                        "surface-tint": "#00e1ab",
+                        "primary-container": "#00ffc2",
+                        "inverse-primary": "#006c50",
+                        "tertiary-fixed": "#ffe253",
+                        "surface-container": "#122131",
+                        "surface-container-lowest": "#010f1f",
+                        "on-surface-variant": "#b9cbc1",
+                        "surface-container-high": "#1c2b3c",
+                        "on-secondary-fixed": "#1c1b1b",
+                        "secondary-fixed": "#e5e2e1",
+                        "on-error-container": "#ffdad6",
+                        "secondary-container": "#474746",
+                        "tertiary-fixed-dim": "#e2c62e",
+                        "on-tertiary": "#393000",
+                        "outline-variant": "#3a4a43",
+                        "on-surface": "#d4e4fa",
+                        "surface-bright": "#2c3a4c",
+                        "surface-container-highest": "#273647",
+                        "on-tertiary-fixed-variant": "#534600",
+                        "primary-fixed": "#36ffc4",
+                        "background": "#051424",
+                        "error-container": "#93000a",
+                        "on-tertiary-container": "#746300",
+                        "secondary": "#c8c6c5",
+                        "error": "#ffb4ab",
+                        "on-tertiary-fixed": "#211b00",
+                        "on-secondary-container": "#b7b5b4",
+                        "on-secondary": "#313030",
+                        "on-error": "#690005",
+                        "on-primary-fixed": "#002116",
+                        "on-primary": "#003828",
+                        "outline": "#83958c",
+                        "surface": "#051424",
+                        "inverse-on-surface": "#233143",
+                        "surface-dim": "#051424",
+                        "surface-container-low": "#0d1c2d",
+                        "on-background": "#d4e4fa",
+                        "tertiary-container": "#ffe149",
+                        "inverse-surface": "#d4e4fa",
+                        "tertiary": "#fffeff",
+                        "on-primary-container": "#007255",
+                        "secondary-fixed-dim": "#c8c6c5",
+                        "primary-fixed-dim": "#00e1ab",
+                        "surface-variant": "#273647"
+                    },
+                    "borderRadius": {
+                        "DEFAULT": "0.125rem",
+                        "lg": "0.25rem",
+                        "xl": "0.5rem",
+                        "full": "0.75rem"
+                    },
+                    "spacing": {
+                        "unit": "4px",
+                        "container-max": "1200px",
+                        "gutter": "16px",
+                        "margin-desktop": "32px",
+                        "margin-mobile": "16px"
+                    },
+                    "fontFamily": {
+                        "headline-md": ["Inter"],
+                        "display-lg": ["Inter"],
+                        "body-base": ["Inter"],
+                        "data-mono": ["JetBrains Mono"],
+                        "label-xs": ["JetBrains Mono"]
+                    },
+                    "fontSize": {
+                        "headline-md": ["20px", { "lineHeight": "1.4", "letterSpacing": "-0.01em", "fontWeight": "500" }],
+                        "display-lg": ["32px", { "lineHeight": "1.2", "letterSpacing": "-0.02em", "fontWeight": "600" }],
+                        "body-base": ["14px", { "lineHeight": "1.6", "letterSpacing": "0em", "fontWeight": "400" }],
+                        "data-mono": ["14px", { "lineHeight": "1.4", "letterSpacing": "-0.01em", "fontWeight": "500" }],
+                        "label-xs": ["11px", { "lineHeight": "1", "letterSpacing": "0.05em", "fontWeight": "400" }]
+                    }
+                }
+            }
+        }
+    </script>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&amp;family=JetBrains+Mono:wght@400;500&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<style>
+        body { font-family: 'Inter', sans-serif; }
+        .mono { font-family: 'JetBrains Mono', monospace; }
+        /* Custom scrollbar for data dense tables */
+        ::-webkit-scrollbar { width: 6px; height: 6px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: #262626; border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background: #3a4a43; }
+        
+        .glass-panel {
+            background: rgba(10, 10, 10, 0.6);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border: 1px solid #262626;
+        }
+        
+        input[type="text"], input[type="password"], select {
+            background-color: transparent;
+            border: none;
+            border-bottom: 1px solid #3a4a43;
+            color: #d4e4fa;
+            border-radius: 0;
+            padding: 8px 0;
+        }
+        
+        input[type="text"]:focus, input[type="password"]:focus, select:focus {
+            outline: none;
+            box-shadow: none;
+            border-bottom-color: #00e1ab;
+        }
+        
+        select option {
+            background-color: #051424;
+            color: #d4e4fa;
+        }
+    </style>
+</head>
+<body class="bg-background text-on-surface flex min-h-screen">
+<!-- SideNavBar Component -->
+<nav class="bg-surface-container-low dark:bg-surface-container-low text-primary-fixed-dim dark:text-primary-fixed-dim font-headline-md text-headline-md h-screen w-64 fixed left-0 top-0 border-r border-outline-variant dark:border-outline-variant flex flex-col h-full py-gutter px-4 z-50">
+<!-- Brand / Header -->
+<div class="mb-8 mt-4 px-4">
+<h1 class="font-headline-md text-headline-md font-bold text-on-surface dark:text-on-surface tracking-tight">GhostLedger</h1>
+<div class="mt-6">
+<p class="font-body-base text-body-base text-on-surface-variant">User Profile</p>
+<p class="font-headline-md text-headline-md text-on-surface mt-1">$124,500.00</p>
+<p class="font-label-xs text-label-xs text-on-surface-variant uppercase tracking-widest mt-1">Current Net Worth</p>
+</div>
+<button class="mt-6 w-full bg-primary-fixed-dim hover:bg-primary-container text-on-primary-fixed flex items-center justify-center py-2 px-4 rounded-DEFAULT font-data-mono text-data-mono transition-colors duration-150">
+<span class="material-symbols-outlined mr-2" style="font-size: 18px;">add</span>
+                Add Transaction
+            </button>
+</div>
+<!-- Navigation Links -->
+<div class="flex-1 space-y-1">
+<a class="flex items-center text-on-surface-variant font-medium pl-4 py-2 hover:bg-surface-container-high dark:hover:bg-surface-container-high transition-colors duration-150 rounded-DEFAULT font-body-base text-body-base group" href="#">
+<span class="material-symbols-outlined mr-3 text-on-surface-variant group-hover:text-on-surface transition-colors" data-icon="dashboard">dashboard</span>
+                Dashboard
+            </a>
+<a class="flex items-center text-on-surface-variant font-medium pl-4 py-2 hover:bg-surface-container-high dark:hover:bg-surface-container-high transition-colors duration-150 rounded-DEFAULT font-body-base text-body-base group" href="#">
+<span class="material-symbols-outlined mr-3 text-on-surface-variant group-hover:text-on-surface transition-colors" data-icon="account_balance_wallet">account_balance_wallet</span>
+                Ledger
+            </a>
+<a class="flex items-center text-on-surface-variant font-medium pl-4 py-2 hover:bg-surface-container-high dark:hover:bg-surface-container-high transition-colors duration-150 rounded-DEFAULT font-body-base text-body-base group" href="#">
+<span class="material-symbols-outlined mr-3 text-on-surface-variant group-hover:text-on-surface transition-colors" data-icon="smart_toy">smart_toy</span>
+                AI Assistant
+            </a>
+<a class="flex items-center text-primary-fixed-dim font-bold border-l-2 border-primary-fixed-dim pl-4 py-2 bg-surface-container-high rounded-r-DEFAULT opacity-80 transition-opacity font-body-base text-body-base group" href="#">
+<span class="material-symbols-outlined mr-3 text-primary-fixed-dim" data-icon="settings">settings</span>
+                Settings
+            </a>
+</div>
+<!-- Footer Link -->
+<div class="mt-auto pt-4 border-t border-outline-variant">
+<a class="flex items-center text-on-surface-variant font-medium pl-4 py-2 hover:bg-surface-container-high dark:hover:bg-surface-container-high transition-colors duration-150 rounded-DEFAULT font-body-base text-body-base group" href="#">
+<span class="material-symbols-outlined mr-3 text-on-surface-variant group-hover:text-on-surface transition-colors" data-icon="logout">logout</span>
+                Logout
+            </a>
+</div>
+</nav>
+<!-- Main Content Canvas -->
+<main class="ml-64 flex-1 flex flex-col w-full bg-background min-h-screen">
+<!-- Header -->
+<header class="h-16 border-b border-outline-variant flex items-center justify-between px-margin-desktop sticky top-0 bg-background/90 backdrop-blur-sm z-40">
+<div>
+<h2 class="font-headline-md text-headline-md text-on-surface font-semibold">Settings</h2>
+</div>
+<div class="flex items-center space-x-4 text-on-surface-variant">
+<button class="hover:text-primary-fixed-dim transition-colors"><span class="material-symbols-outlined">help_outline</span></button>
+</div>
+</header>
+<!-- Scrollable Content Area -->
+<div class="p-margin-desktop overflow-y-auto max-w-container-max mx-auto w-full">
+<div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+<!-- Left Column (Wider for Form/Data) -->
+<div class="lg:col-span-8 space-y-6">
+<!-- LLM Configuration Panel -->
+<section class="bg-surface-container-low border border-outline-variant rounded-lg p-6">
+<div class="flex items-center justify-between mb-6 pb-4 border-b border-outline-variant/50">
+<div>
+<h3 class="font-headline-md text-headline-md text-on-surface flex items-center">
+<span class="material-symbols-outlined mr-2 text-primary-fixed-dim">memory</span>
+                                    LLM Configuration
+                                </h3>
+<p class="font-body-base text-body-base text-on-surface-variant mt-1">Configure the AI provider used for automatic transaction categorization.</p>
+</div>
+</div>
+<form class="space-y-6">
+<div>
+<label class="block font-label-xs text-label-xs text-on-surface-variant uppercase tracking-widest mb-2">Provider</label>
+<div class="relative">
+<select class="w-full bg-transparent font-data-mono text-data-mono appearance-none pr-8">
+<option selected="" value="openai">OpenAI</option>
+<option value="anthropic">Anthropic</option>
+<option value="ollama">Ollama (Local)</option>
+</select>
+<div class="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 text-on-surface-variant">
+<span class="material-symbols-outlined text-sm">expand_more</span>
+</div>
+</div>
+</div>
+<div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+<div>
+<label class="block font-label-xs text-label-xs text-on-surface-variant uppercase tracking-widest mb-2">API Key</label>
+<input class="w-full font-data-mono text-data-mono" placeholder="sk-..." type="password" value="sk-xxxxxxxxxxxxxxxxxxxxxxxx"/>
+</div>
+<div>
+<label class="block font-label-xs text-label-xs text-on-surface-variant uppercase tracking-widest mb-2">Endpoint URL</label>
+<input class="w-full font-data-mono text-data-mono" placeholder="https://..." type="text" value="https://api.openai.com/v1"/>
+<p class="font-label-xs text-label-xs text-on-surface-variant mt-1 opacity-70">Leave default for standard providers.</p>
+</div>
+</div>
+<div class="flex justify-end pt-4">
+<button class="border border-primary-fixed-dim text-primary-fixed-dim hover:bg-primary-fixed-dim/10 px-4 py-2 rounded-DEFAULT font-data-mono text-data-mono transition-colors" type="button">
+                                    Test Connection
+                                </button>
+<button class="ml-4 bg-primary-fixed-dim text-on-primary-fixed hover:bg-primary-container px-4 py-2 rounded-DEFAULT font-data-mono text-data-mono transition-colors" type="submit">
+                                    Save Config
+                                </button>
+</div>
+</form>
+</section>
+<!-- Category Mapping Manager -->
+<section class="bg-surface-container-low border border-outline-variant rounded-lg p-0 overflow-hidden">
+<div class="p-6 pb-4 border-b border-outline-variant/50 flex items-center justify-between bg-surface-container-highest/20">
+<div>
+<h3 class="font-headline-md text-headline-md text-on-surface flex items-center">
+<span class="material-symbols-outlined mr-2 text-primary-fixed-dim">rule</span>
+                                    Category Mapping Rules
+                                </h3>
+<p class="font-body-base text-body-base text-on-surface-variant mt-1">Deterministic rules applied before AI processing.</p>
+</div>
+<button class="text-primary-fixed-dim hover:text-primary-container transition-colors flex items-center font-data-mono text-data-mono text-sm">
+<span class="material-symbols-outlined text-sm mr-1">add</span> New Rule
+                            </button>
+</div>
+<div class="overflow-x-auto">
+<table class="w-full text-left border-collapse">
+<thead>
+<tr class="border-b border-outline-variant font-label-xs text-label-xs text-on-surface-variant uppercase tracking-widest bg-surface-container/50">
+<th class="px-6 py-3 font-normal">Match String (Regex supported)</th>
+<th class="px-6 py-3 font-normal">Target Category</th>
+<th class="px-6 py-3 font-normal text-right">Actions</th>
+</tr>
+</thead>
+<tbody class="font-data-mono text-data-mono text-on-surface divide-y divide-outline-variant/30">
+<tr class="hover:bg-surface-container-highest/30 transition-colors group">
+<td class="px-6 py-3">^AMZN.*</td>
+<td class="px-6 py-3">
+<span class="inline-block px-2 py-1 bg-surface-bright text-on-surface border border-outline-variant rounded-sm text-xs">Shopping</span>
+</td>
+<td class="px-6 py-3 text-right">
+<button class="text-on-surface-variant hover:text-error transition-colors opacity-0 group-hover:opacity-100">
+<span class="material-symbols-outlined text-sm">delete</span>
+</button>
+</td>
+</tr>
+<tr class="hover:bg-surface-container-highest/30 transition-colors group">
+<td class="px-6 py-3">UBER EATS</td>
+<td class="px-6 py-3">
+<span class="inline-block px-2 py-1 bg-surface-bright text-on-surface border border-outline-variant rounded-sm text-xs">Dining</span>
+</td>
+<td class="px-6 py-3 text-right">
+<button class="text-on-surface-variant hover:text-error transition-colors opacity-0 group-hover:opacity-100">
+<span class="material-symbols-outlined text-sm">delete</span>
+</button>
+</td>
+</tr>
+<tr class="hover:bg-surface-container-highest/30 transition-colors group">
+<td class="px-6 py-3">NETFLIX</td>
+<td class="px-6 py-3">
+<span class="inline-block px-2 py-1 bg-surface-bright text-on-surface border border-outline-variant rounded-sm text-xs">Subscriptions</span>
+</td>
+<td class="px-6 py-3 text-right">
+<button class="text-on-surface-variant hover:text-error transition-colors opacity-0 group-hover:opacity-100">
+<span class="material-symbols-outlined text-sm">delete</span>
+</button>
+</td>
+</tr>
+<tr class="hover:bg-surface-container-highest/30 transition-colors group">
+<td class="px-6 py-3">.*WHOLEFDS.*</td>
+<td class="px-6 py-3">
+<span class="inline-block px-2 py-1 bg-surface-bright text-on-surface border border-outline-variant rounded-sm text-xs">Groceries</span>
+</td>
+<td class="px-6 py-3 text-right">
+<button class="text-on-surface-variant hover:text-error transition-colors opacity-0 group-hover:opacity-100">
+<span class="material-symbols-outlined text-sm">delete</span>
+</button>
+</td>
+</tr>
+</tbody>
+</table>
+</div>
+</section>
+</div>
+<!-- Right Column (Sidebar Utilities) -->
+<div class="lg:col-span-4 space-y-6">
+<!-- Database Utilities -->
+<section class="bg-surface-container-low border border-outline-variant rounded-lg p-6">
+<h3 class="font-headline-md text-headline-md text-on-surface mb-4 flex items-center border-b border-outline-variant/50 pb-4">
+<span class="material-symbols-outlined mr-2 text-primary-fixed-dim">database</span>
+                            Database Utilities
+                        </h3>
+<div class="space-y-4 font-body-base text-body-base">
+<div class="flex justify-between items-center py-2">
+<span class="text-on-surface-variant">Status</span>
+<span class="flex items-center text-primary-fixed-dim font-data-mono text-data-mono text-sm">
+<span class="w-2 h-2 rounded-full bg-primary-fixed-dim mr-2 animate-pulse"></span> Healthy
+                                </span>
+</div>
+<div class="flex justify-between items-center py-2">
+<span class="text-on-surface-variant">Records</span>
+<span class="font-data-mono text-data-mono text-on-surface">14,204</span>
+</div>
+<div class="flex justify-between items-center py-2 border-b border-outline-variant/30 pb-4">
+<span class="text-on-surface-variant">Last Backup</span>
+<span class="font-data-mono text-data-mono text-on-surface">Today, 08:00 AM</span>
+</div>
+<div class="pt-2 flex flex-col space-y-3">
+<button class="w-full flex items-center justify-center border border-primary-fixed-dim text-primary-fixed-dim hover:bg-primary-fixed-dim/10 py-2 px-4 rounded-DEFAULT transition-colors font-data-mono text-data-mono">
+<span class="material-symbols-outlined mr-2" style="font-size: 18px;">cloud_download</span>
+                                    Backup DB
+                                </button>
+<button class="w-full flex items-center justify-center border border-error/50 text-error hover:bg-error/10 py-2 px-4 rounded-DEFAULT transition-colors font-data-mono text-data-mono">
+<span class="material-symbols-outlined mr-2" style="font-size: 18px;">delete_forever</span>
+                                    Purge Data
+                                </button>
+</div>
+</div>
+</section>
+<!-- Application Info -->
+<section class="bg-surface-container-lowest border border-outline-variant rounded-lg p-4 text-center opacity-80">
+<span class="material-symbols-outlined text-outline text-4xl mb-2">terminal</span>
+<p class="font-data-mono text-data-mono text-on-surface-variant text-sm">GhostLedger v2.4.1-stable</p>
+<p class="font-label-xs text-label-xs text-outline mt-1 uppercase tracking-widest">Build 8a7f9c2</p>
+</section>
+</div>
+</div>
+<div class="h-16"></div> <!-- Bottom spacer -->
+</div>
+</main>
+</body></html>
