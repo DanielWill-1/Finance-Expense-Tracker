@@ -169,9 +169,27 @@ export class CSVImportService {
     const batch = this.importRepo.findById(batchId);
     if (!batch) throw new NotFoundError('Import batch', batchId);
 
+    const invalidRows: { index: number; reason: string }[] = [];
+    const validated = rows.map((row, idx) => {
+      const errors: string[] = [];
+      if (!row.date || !/^\d{4}-\d{2}-\d{2}/.test(row.date)) errors.push('Invalid or missing date');
+      if (!row.description || row.description.trim().length === 0) errors.push('Missing description');
+      if (!row.amount || row.amount <= 0 || isNaN(row.amount)) errors.push('Invalid amount');
+      if (row.type !== 'income' && row.type !== 'expense') errors.push('Invalid type');
+      if (errors.length > 0) invalidRows.push({ index: idx, reason: errors.join('; ') });
+      return { ...row, valid: errors.length === 0 };
+    });
+
+    if (invalidRows.length > 0) {
+      throw new ValidationError(
+        `Cannot import: ${invalidRows.length} row(s) have invalid data. ` +
+        invalidRows.slice(0, 3).map((r) => `Row ${r.index}: ${r.reason}`).join(' | ') +
+        (invalidRows.length > 3 ? ` and ${invalidRows.length - 3} more` : ''),
+      );
+    }
+
     const importBatch = sqlite.transaction(() => {
       let imported = 0;
-      let skipped = 0;
 
       const insert = sqlite.prepare(
         `INSERT INTO transactions (amount, date, description, merchant, category_id, account_id, type, import_batch_id, is_recurring, notes, created_at, updated_at)
@@ -180,29 +198,25 @@ export class CSVImportService {
 
       const now = new Date().toISOString();
 
-      for (const row of rows) {
-        try {
-          insert.run(
-            row.amount,
-            row.date,
-            row.description,
-            row.merchant ?? null,
-            row.categoryId ?? null,
-            accountId ?? null,
-            row.type ?? 'expense',
-            batchId,
-            now,
-            now,
-          );
-          imported++;
-        } catch {
-          skipped++;
-        }
+      for (const row of validated) {
+        insert.run(
+          row.amount,
+          row.date,
+          row.description,
+          row.merchant ?? null,
+          row.categoryId ?? null,
+          accountId ?? null,
+          row.type ?? 'expense',
+          batchId,
+          now,
+          now,
+        );
+        imported++;
       }
 
       this.importRepo.updateStatus(batchId, 'completed', {
         importedRows: imported,
-        skippedRows: skipped,
+        skippedRows: 0,
         duplicateRows: 0,
       });
 

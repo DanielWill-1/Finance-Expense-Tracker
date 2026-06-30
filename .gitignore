@@ -72,3 +72,5 @@ drizzle/meta/
 *.bak
 .commandcode/taste/taste.md
 prompt.md
+prompt.md
+NEXT.md

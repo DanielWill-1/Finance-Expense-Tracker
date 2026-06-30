@@ -172,11 +172,11 @@ function CategoryChart() {
     return <ErrorState message="Failed to load categories" onRetry={() => refetch()} />;
   }
 
-  const chartData = data.data
-    .filter((c) => c.categoryName)
+  const chartData = (data.data ?? [])
+    .filter((c) => c && c.categoryName)
     .map((c) => ({
       name: c.categoryName!,
-      amount: Math.abs(c.total),
+      amount: Math.abs(c.total ?? 0),
     }))
     .sort((a, b) => b.amount - a.amount)
     .slice(0, 6);

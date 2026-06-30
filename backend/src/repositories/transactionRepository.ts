@@ -247,14 +247,14 @@ export class TransactionRepository {
           COALESCE(SUM(CASE WHEN type = 'income' THEN amount ELSE 0 END), 0) as income,
           COALESCE(SUM(CASE WHEN type = 'expense' THEN amount ELSE 0 END), 0) as expense
          FROM transactions
-         WHERE 1=1 ${dateFilter} ${accountId ? 'AND account_id = ?' : ''}
+         WHERE date IS NOT NULL AND date != '' ${dateFilter} ${accountId ? 'AND account_id = ?' : ''}
          GROUP BY month
          ORDER BY month DESC
          LIMIT ?`,
       )
       .all(...bindings, limit) as { month: string; income: number; expense: number }[];
 
-    return rows.reverse();
+    return rows.filter((r) => r.month !== null).reverse();
   }
 
   getCategoryTotals(

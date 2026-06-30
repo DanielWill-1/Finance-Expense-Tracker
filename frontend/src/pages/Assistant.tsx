@@ -1,12 +1,7 @@
 import { useState, useRef, useEffect } from 'react';
+import { useChat } from '../services/chatContext';
 import { Bot, Send, Brain, TrendingDown, AlertTriangle, History } from 'lucide-react';
-
-interface Message {
-  id: string;
-  role: 'user' | 'assistant';
-  content: string;
-  timestamp: string;
-}
+import type { Message as MessageType } from '../services/chatContext';
 
 const SUGGESTED_PROMPTS = [
   { icon: Brain, label: 'Analyze subscriptions', prompt: 'Analyze my subscriptions and recurring payments.' },
@@ -16,18 +11,7 @@ const SUGGESTED_PROMPTS = [
 ];
 
 export default function Assistant() {
-  const [messages, setMessages] = useState<Message[]>([
-    {
-      id: 'intro',
-      role: 'assistant',
-      content: `Hi! I'm **Ghost AI**, your personal finance assistant.
-
-I can help you analyze spending, identify trends, and understand your financial data. All analysis runs locally on your machine — your data never leaves this device.
-
-**How can I assist you today?**`,
-      timestamp: '',
-    },
-  ]);
+  const { messages, addMessage, clearMessages } = useChat();
   const [input, setInput] = useState('');
   const [isTyping, setIsTyping] = useState(false);
   const chatEndRef = useRef<HTMLDivElement>(null);
@@ -40,19 +24,19 @@ I can help you analyze spending, identify trends, and understand your financial 
     const text = prompt || input;
     if (!text.trim()) return;
 
-    const userMsg: Message = {
+    const userMsg: MessageType = {
       id: Date.now().toString(),
       role: 'user',
       content: text,
       timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
     };
 
-    setMessages((prev) => [...prev, userMsg]);
+    addMessage(userMsg);
     setInput('');
     setIsTyping(true);
 
     setTimeout(() => {
-      const aiMsg: Message = {
+      const aiMsg: MessageType = {
         id: (Date.now() + 1).toString(),
         role: 'assistant',
         content: `I've received your query about: *"${text}"*
@@ -62,7 +46,7 @@ AI analysis will be available once an AI provider is configured in **Settings**.
 Until then, I can suggest visiting the **Dashboard** for instant analytics or the **Ledger** to review your transactions.`,
         timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
       };
-      setMessages((prev) => [...prev, aiMsg]);
+      addMessage(aiMsg);
       setIsTyping(false);
     }, 1500);
   }
@@ -87,7 +71,7 @@ Until then, I can suggest visiting the **Dashboard** for instant analytics or th
           </div>
         </div>
         <div className="ml-auto flex items-center gap-4">
-          <button className="text-on-surface-variant hover:text-primary transition-colors">
+          <button onClick={clearMessages} className="text-on-surface-variant hover:text-primary transition-colors" title="Clear chat">
             <History className="h-5 w-5" />
           </button>
         </div>

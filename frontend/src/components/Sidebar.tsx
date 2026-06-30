@@ -1,4 +1,6 @@
 import { NavLink } from 'react-router-dom';
+import { useQuery } from '@tanstack/react-query';
+import { fetchAnalyticsSummary } from '../services/endpoints';
 import {
   LayoutDashboard,
   Wallet,
@@ -8,7 +10,21 @@ import {
   LogOut,
 } from 'lucide-react';
 
-function Sidebar() {
+function Sidebar({ onAddTransaction }: { onAddTransaction: () => void }) {
+  const { data } = useQuery({
+    queryKey: ['analytics-summary'],
+    queryFn: () => fetchAnalyticsSummary(),
+    refetchInterval: 30_000,
+  });
+
+  const netWorth = data?.data?.netWorth ?? data?.data?.netSavings ?? 0;
+
+  function formatCurrency(n: number) {
+    if (n == null) return '₹0';
+    if (Math.abs(n) >= 10000000) return '₹' + (n / 10000000).toFixed(1) + ' Cr';
+    return new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }).format(n);
+  }
+
   return (
     <aside className="w-64 h-screen fixed left-0 top-0 border-r border-outline-variant bg-surface-container-low z-20 flex flex-col py-4">
       <div className="px-4 mb-6">
@@ -18,13 +34,18 @@ function Sidebar() {
             GL
           </div>
           <div>
-            <p className="font-mono text-sm text-on-surface">—</p>
+            <p className="font-mono text-sm text-on-surface">
+              {formatCurrency(netWorth)}
+            </p>
             <p className="text-xs text-on-surface-variant uppercase tracking-wider mt-0.5">
               Net Worth
             </p>
           </div>
         </div>
-        <button className="mt-4 w-full bg-primary-fixed-dim text-on-primary font-mono text-sm font-medium py-2 px-4 rounded flex items-center justify-center gap-2 hover:bg-primary-fixed transition-colors">
+        <button
+          onClick={onAddTransaction}
+          className="mt-4 w-full bg-primary-fixed-dim text-on-primary font-mono text-sm font-medium py-2 px-4 rounded flex items-center justify-center gap-2 hover:bg-primary-fixed transition-colors"
+        >
           <Plus className="h-4 w-4" />
           Add Transaction
         </button>

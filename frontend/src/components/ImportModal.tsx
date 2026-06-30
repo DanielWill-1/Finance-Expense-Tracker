@@ -65,7 +65,7 @@ export function ImportModal({ onClose }: ImportModalProps) {
       queryClient.invalidateQueries({ queryKey: ['import-history'] });
       setStep('done');
     },
-    onError: () => setError('Import failed'),
+    onError: (err: Error) => setError(err.message || 'Import failed'),
   });
 
   function handleFile(file: File) {

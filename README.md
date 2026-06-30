@@ -10,13 +10,15 @@ No accounts. No telemetry. No cloud dependency. Your financial data stays on you
 
 - **Local-First** — All data stored in SQLite. No sign-ups, no cloud, no vendor lock-in.
 - **Full Ledger** — Income, expenses, accounts, categories, and recurring transactions.
-- **CSV Import** — Drag-and-drop bank statement import with automatic parser detection (HDFC, ICICI, SBI, Axis, Chase, Bank of America, and more).
-- **Rule Engine** — Deterministic auto-categorization rules based on merchant, description, amount, or account.
-- **Duplicate Detection** — Flag likely duplicates using amount, merchant, timestamp proximity, and import batch metadata.
-- **Recurring Detection** — Automatically identify subscriptions and repeating bills.
-- **Smart Dashboard** — Cash flow, burn rate, category breakdown, largest expenses, upcoming bills, and net worth.
-- **Optional AI Assistant** — Multi-provider AI (OpenAI, Anthropic, Groq, Ollama) with privacy-preserving data retrieval.
-- **Import History & Undo** — Track every import batch with full undo support.
+- **CSV Import** — Drag-and-drop bank statement import with automatic parser detection (HDFC, Chase, and extensible bank formats).
+- **Rule Engine** — Deterministic auto-categorization rules based on contains, starts with, ends with, or regex matching.
+- **Duplicate Detection** — Exact match on amount+date+description, plus fuzzy matching for import safety.
+- **Recurring Detection** — Automatically identify subscriptions and repeating bills via merchant grouping and frequency analysis.
+- **Smart Dashboard** — Cash flow, category breakdown, largest expenses, upcoming recurring, burn rate, and live Net Worth.
+- **Manual Transactions** — Full create/edit modal for individual transaction entry.
+- **AI Assistant** — Chat UI with prompt chips. Multi-provider AI backend planned (OpenAI, Anthropic, Groq, Ollama).
+- **Import History & Undo** — Track every import batch with one-click undo support.
+- **Chat Persistence** — AI chat history survives page navigation via localStorage.
 - **Docker Ready** — One-command setup with `docker compose up`.
 
 ---
@@ -27,16 +29,16 @@ No accounts. No telemetry. No cloud dependency. Your financial data stays on you
 | ---------- | ----------------------------------- |
 | Frontend   | React, Vite, TypeScript, TailwindCSS |
 | Backend    | Express, TypeScript                 |
-| Database   | SQLite, Drizzle ORM                 |
+| Database   | SQLite, better-sqlite3 (Drizzle for schema definitions) |
 | Validation | Zod                                 |
 | Charts     | Recharts                            |
-| Tables     | TanStack Table                      |
-| Forms      | React Hook Form                     |
+| State      | TanStack Query                      |
 | CSV        | PapaParse                           |
-| Markdown   | react-markdown                      |
+| Uploads    | Multer                              |
+| Icons      | lucide-react                        |
 | Testing    | Vitest, Supertest                   |
 | Packaging  | Docker, Docker Compose              |
-| Security   | Helmet, CSP, Rate Limiting          |
+| Security   | Helmet, CORS, Morgan                |
 
 ---
 
@@ -44,23 +46,30 @@ No accounts. No telemetry. No cloud dependency. Your financial data stays on you
 
 ```
 GhostLedger/
-├── frontend/          # React + Vite + TypeScript + TailwindCSS
-│   ├── pages/         # Route-level page components
-│   ├── components/    # Reusable UI components
-│   ├── hooks/         # Custom React hooks
-│   ├── services/      # API client wrappers
-│   ├── types/         # Shared TypeScript interfaces
-│   └── utils/         # Utility functions
-├── backend/           # Express + TypeScript API
-│   ├── routes/        # Thin route declarations
-│   ├── controllers/   # Request handling and response formatting
-│   ├── services/      # Business logic layer
-│   ├── repositories/  # Database access (Drizzle ORM)
-│   ├── database/      # Schemas, migrations, seeds
-│   └── middleware/     # Validation, error handling, security
-├── docs/              # Architecture notes, API docs
-├── docker/            # Dockerfile and compose configuration
-└── .github/           # CI workflows, issue templates
+├── frontend/               # React + Vite + TypeScript + TailwindCSS
+│   └── src/
+│       ├── pages/          # Route-level page components (Dashboard, Ledger, Assistant, Settings)
+│       ├── components/     # Reusable UI (ImportModal, TransactionModal, ImportHistory, Sidebar, ui/)
+│       ├── layout/         # AppLayout (sidebar + outlet + status bar)
+│       ├── services/       # apiClient (axios), endpoints.ts, chatContext
+│       └── types/          # Shared TypeScript interfaces (api.ts)
+├── backend/                # Express + TypeScript API (port 3001)
+│   └── src/
+│       ├── routes/         # 8 route files (health, transactions, categories, accounts, analytics, settings, imports, rules)
+│       ├── controllers/    # Request handling and response formatting
+│       ├── services/       # Business logic (Transaction, Analytics, RuleEngine, CSVImport, Settings, DuplicateDetection, RecurringDetection, parsers/)
+│       ├── repositories/   # Database access (Transaction, Category, Account, Rule, Settings, Import)
+│       ├── database/       # SQLite connection, Drizzle schemas, seed/migrate
+│       ├── validators/     # Zod schemas for all endpoints
+│       ├── middleware/     # errorHandler, notFoundHandler
+│       ├── types/          # ApiResponse<T>, PaginatedResponse<T>, HealthStatus
+│       ├── utils/          # Logger, errors, response helpers, pagination, constants
+│       └── test/           # 6 test files, 28 tests (Vitest + Supertest, isolated DB per file)
+├── docker/                 # Dockerfile + docker-compose.yml
+├── docs/                   # Architecture notes
+├── pages/                  # Original HTML prototypes (not in build)
+├── NEXT.md                 # Resume point for next development session
+└── package.json            # Root: concurrently runs frontend + backend
 ```
 
 ### Backend Layered Architecture
@@ -70,84 +79,83 @@ routes → controllers → services → repositories → database
 ```
 
 - **Routes** — Map HTTP methods and paths. Thin and declarative.
-- **Controllers** — Parse requests, set status codes, orchestrate services.
-- **Services** — Business logic: categorization, duplicate checks, import workflows.
-- **Repositories** — Focused database access. Hide SQL/ORM from services.
-- **Database** — Drizzle schemas, migrations, indexes, constraints.
-- **Middleware** — Validation, error handling, rate limiting, security headers.
+- **Controllers** — Parse requests with Zod, set status codes, orchestrate services.
+- **Services** — Business logic: analytics computation, duplicate checks, rule engine, CSV import pipeline.
+- **Repositories** — Raw SQL via better-sqlite3 prepared statements. Drizzle ORM schema exists for type definitions only.
+- **Database** — SQLite with auto-created tables on startup (CREATE TABLE IF NOT EXISTS).
+- **Middleware** — Validation, error handling, not found.
 
 ---
 
-## Core Data Entities
+## Database Schema (6 tables)
 
-- **Account** — Bank, wallet, card, cash, investment, or custom account metadata.
-- **Transaction** — Amount, date, merchant, description, category, account, import source.
-- **Category** — User-editable income and expense taxonomy.
-- **ImportBatch** — File name, parser type, row count, status, undo support.
-- **Rule** — Deterministic categorization rules (IF conditions THEN category/action).
-- **RecurringTransaction** — Detected or confirmed repeating payment patterns.
+| Table | Key Columns |
+|-------|-------------|
+| **accounts** | id, name, type (bank/card/cash/wallet/investment), balance, currency, is_active |
+| **categories** | id, name, type (income/expense), parent_id (self-ref FK), color, icon |
+| **transactions** | id, amount, date, description, merchant, category_id, account_id, type, import_batch_id, is_recurring, notes, external_id |
+| **import_batches** | id, filename, imported_at, total_rows, imported_rows, skipped_rows, duplicate_rows, status (preview/completed/rolled_back), parser_type |
+| **rules** | id, priority, contains_text, starts_with, ends_with, regex, category_id, enabled |
+| **settings** | id, key (unique), value, updated_at |
 
 ---
 
-## AI Integration Strategy
+## API Endpoints (36 total)
 
-AI is **optional** and **disabled by default**. The application works fully without it.
+**Response format (every endpoint):**
+```json
+{ "success": true, "data": {...} }
+{ "success": true, "data": [...], "pagination": { "page", "limit", "total", "totalPages" } }
+{ "success": false, "error": { "code": "...", "message": "..." } }
+```
 
-| Mode         | Behavior                                                                                        |
-| ------------ | ----------------------------------------------------------------------------------------------- |
-| No AI        | All features work via manual categories, rules, filters, and dashboard views.                   |
-| Cloud API    | Provider abstraction for OpenAI, Anthropic, Groq when user supplies credentials.                |
+| Group | Endpoints |
+|-------|-----------|
+| Health | `GET /api/health` |
+| Transactions | `GET/POST /api/transactions`, `GET/PUT/DELETE /api/transactions/:id` |
+| Categories | `GET/POST /api/categories`, `GET/PUT/DELETE /api/categories/:id` |
+| Accounts | `GET/POST /api/accounts`, `GET/PUT/DELETE /api/accounts/:id` |
+| Analytics | `GET /api/analytics/summary`, `/monthly`, `/weekly`, `/categories`, `/spending-trends`, `/largest-expenses`, `/top-merchants`, `/recurring`, `/upcoming-recurring` |
+| Settings | `GET/PUT /api/settings` |
+| Import | `POST /api/import` (multipart CSV), `POST /api/import/:id/confirm`, `POST /api/import/:id/undo`, `GET /api/import/history`, `GET /api/import/history/:id` |
+| Rules | `GET/POST /api/rules`, `PUT/DELETE /api/rules/:id` |
+
+---
+
+## CSV Import Pipeline
+
+1. **Upload** — Drag-and-drop or file picker, 50MB max, CSV only
+2. **Parse** — Bank format auto-detection (HDFC → Chase → Generic fallback), PapaParse with header mapping
+3. **Preview** — Full row-by-row preview with validation errors, duplicate flags, rule engine category suggestions
+4. **Review** — Edit descriptions inline, review duplicates/errors before committing
+5. **Validate** — Backend re-validates every row (date format, non-empty description, positive amount, valid type) — throws named ValidationError
+6. **Commit** — Transactional SQLite insert (all-or-nothing)
+7. **Undo** — One-click rollback deletes all transactions from the batch
+
+---
+
+## AI Integration Strategy (Planned)
+
+AI is **optional** and **disabled by default**. The chat UI exists with prompt chips and message persistence. Backend AI providers are planned for Phase 8.
+
+| Mode         | Behavior |
+| ------------ | -------- |
+| No AI        | All features work via manual categories, rules, filters, and dashboard views. |
+| Cloud API    | Provider abstraction for OpenAI, Anthropic, Groq when user supplies credentials. |
 | Local Ollama | Private local inference for users who prefer not to send financial context to a cloud provider. |
-
-### AI Safety
-
-Never send the entire database to an AI provider. Instead:
-
-1. Parse the user's question to determine relevant date range.
-2. Query SQLite for only necessary summary and rows.
-3. Cap the result set.
-4. Transform into compact JSON.
-5. Send only that context to the selected model.
-
----
-
-## Security & Privacy
-
-- No API keys stored in the main database. Use `.env.local` or secure keychain.
-- Schema changes via migrations only — no runtime table creation.
-- All inputs validated with Zod: API requests, CSV rows, config values, AI outputs.
-- CSV values sanitized before display to prevent CSV injection.
-- Helmet and Content Security Policy enforced.
-- Rate limiting on AI and import endpoints.
-- Backups are explicit and user-controlled.
-- No analytics, no telemetry, no external calls unless explicitly configured.
 
 ---
 
 ## Getting Started
 
-### Prerequisites
-
-- Node.js 18+
-- npm
-- Docker (optional)
-
-### Development
-
 ```bash
-# Clone the repository
-git clone https://github.com/your-username/ghostledger.git
-cd ghostledger
-
-# Install frontend dependencies
-cd frontend
+# Root (runs both servers via concurrently)
 npm install
 npm run dev
 
-# Install backend dependencies (in a separate terminal)
-cd backend
-npm install
-npm run dev
+# Or run individually
+cd backend && npm install && npm run dev    # http://localhost:3001
+cd frontend && npm install && npm run dev   # http://localhost:5173
 ```
 
 ### Docker
@@ -156,74 +164,43 @@ npm run dev
 docker compose up
 ```
 
-SQLite data is stored in a mounted volume — survives container rebuilds.
-
 ---
 
 ## Testing
 
 ```bash
-# Backend tests
-cd backend
-npm test
-
-# Frontend tests
-cd frontend
-npm test
+cd backend && npm test    # 28 tests across 6 files, all passing
+# Frontend: TypeScript strict compiles clean, Vite builds successfully
 ```
 
-Uses Vitest for unit tests and integration tests. Supertest for API testing.
-
 ---
 
-## Dashboard Views
+## Implementation Status
 
-| View               | Purpose                                                      |
-| ------------------ | ------------------------------------------------------------ |
-| Cash Flow          | Monthly income, expenses, and net movement.                  |
-| Monthly Burn Rate  | Recurring spending pressure and average monthly expense trend. |
-| Category Breakdown | Where money goes and which rules need adjustment.            |
-| Largest Expense    | Outlier transactions for review.                             |
-| Upcoming Bills     | Forecasted near-term expenses from recurring detection.      |
-| Net Worth          | Accounts and balances modeled cleanly.                       |
+| Phase | Goal | Status |
+|-------|------|--------|
+| 1 | Project Foundation | ✅ Vite + Express + TypeScript + Docker |
+| 2 | Database Layer | ✅ SQLite + Drizzle schemas + auto-create tables |
+| 3 | Backend API | ✅ Full CRUD for all entities |
+| 4 | Frontend Layout | ✅ Sidebar + routing + page shells |
+| 5 | Ledger + CSV Import | ✅ Import pipeline + transaction table + history + undo |
+| 6 | Dashboard + Analytics | ✅ Charts + summary + recurring + largest expenses |
+| 7 | Rule Engine + Duplicates + Recurring | ✅ Auto-categorization + exact/fuzzy dedup + subscription detection |
+| 8 | AI Assistant | ⚠️ Chat UI done, no backend AI providers yet |
+| 9 | Settings (backup/restore/export) | ⚠️ LLM config + rules UI done, no backup/restore/export |
+| 10 | Polish (tests, Docker, docs, CI) | ❌ Not started |
 
----
-
-## Implementation Roadmap
-
-| Phase | Goal                 | Result                           |
-| ----- | -------------------- | -------------------------------- |
-| 1     | Project Foundation   | Vite + Express + TypeScript + Docker |
-| 2     | Database Layer       | SQLite + Drizzle schema + migrations |
-| 3     | Backend API          | Full CRUD for all entities       |
-| 4     | Frontend Layout      | Sidebar + routing + page shells  |
-| 5     | Ledger               | CSV import + transaction table   |
-| 6     | Dashboard            | Charts + analytics views         |
-| 7     | AI Assistant         | Multi-provider AI abstraction    |
-| 8     | Settings             | Rules + backup + config          |
-| 9     | Polish               | Testing + Docker + optimization  |
-| 10    | Documentation        | README + screenshots + release   |
+**Recent fixes (audit):** Dashboard null-safety, CSV validation hardening, Add Transaction modal, live Net Worth in sidebar, chat persistence via localStorage.
 
 ---
 
 ## Design System
 
 - **Dark theme** — Minimal, dense, professional, developer aesthetic.
-- **Focus** — Readability, information density, speed.
-- **Sidebar** — Persistent left sidebar: Dashboard, Ledger, AI Assistant, Settings.
+- **Color palette** — Background `#051424`, accent `#00e1ab`, text `#d4e4fa`, borders `#3a4a43`
+- **Sidebar** — Persistent left sidebar: Dashboard, Ledger, AI Assistant, Settings. Live Net Worth display.
+- **Typography** — JetBrains Mono for data, Inter/system for UI labels.
 - No neumorphism, glassmorphism, or excessive gradients.
-
----
-
-## Contributing
-
-1. Fork the repository.
-2. Create a feature branch.
-3. Make your changes.
-4. Run tests: `npm test`
-5. Submit a pull request.
-
-Ensure code follows the project's TypeScript strict mode, layered architecture, and no-placeholder philosophy.
 
 ---
 
@@ -231,15 +208,3 @@ Ensure code follows the project's TypeScript strict mode, layered architecture, 
 
 MIT — see [LICENSE](./LICENSE) for details.
 
----
-
-## Portfolio & Interview Value
-
-GhostLedger demonstrates real engineering decisions beyond basic CRUD:
-
-- **Local-first architecture** — Product judgment and privacy awareness.
-- **SQLite + Drizzle** — Schema design, migrations, type-safe database access.
-- **CSV ETL pipeline** — File parsing, validation, normalization, idempotency.
-- **Layered backend** — Maintainable, testable, professional API organization.
-- **Rule engine** — Deterministic automation and domain modeling.
-- **Optional AI** — Modern AI integration without vendor dependency.

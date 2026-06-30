@@ -1,18 +1,25 @@
+import { useState } from 'react';
 import { Outlet } from 'react-router-dom';
 import Sidebar from '../components/Sidebar';
 import { useQuery } from '@tanstack/react-query';
 import { apiClient } from '../services/apiClient';
+import { TransactionModal } from '../components/TransactionModal';
 
 export default function AppLayout() {
+  const [showAddTransaction, setShowAddTransaction] = useState(false);
+
   return (
     <div className="flex h-screen overflow-hidden">
-      <Sidebar />
+      <Sidebar onAddTransaction={() => setShowAddTransaction(true)} />
       <div className="ml-64 flex-1 flex flex-col overflow-hidden">
         <main className="flex-1 overflow-y-auto">
           <Outlet />
         </main>
         <StatusBar />
       </div>
+      {showAddTransaction && (
+        <TransactionModal onClose={() => setShowAddTransaction(false)} />
+      )}
     </div>
   );
 }

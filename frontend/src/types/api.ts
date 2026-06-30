@@ -61,6 +61,8 @@ export interface AnalyticsSummary {
   totalExpenses: number;
   netSavings: number;
   savingsRate: number;
+  burnRate: number;
+  netWorth: number;
 }
 
 export interface MonthlyData {
