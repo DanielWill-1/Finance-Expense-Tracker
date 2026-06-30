@@ -1,13 +1,12 @@
 import type { Request, Response } from 'express';
 import type { ApiResponse, HealthStatus } from '../types/api';
-import { db } from '../database/connection';
-import { sql } from 'drizzle-orm';
+import { sqlite } from '../database/connection';
 
-export async function getHealth(_req: Request, res: Response<ApiResponse<HealthStatus>>): Promise<void> {
+export function getHealth(_req: Request, res: Response<ApiResponse<HealthStatus>>): void {
   let databaseStatus: HealthStatus['database'] = 'disconnected';
 
   try {
-    await db.run(sql`SELECT 1`);
+    sqlite.prepare('SELECT 1').get();
     databaseStatus = 'connected';
   } catch {
     databaseStatus = 'error';

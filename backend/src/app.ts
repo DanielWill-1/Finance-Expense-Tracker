@@ -4,7 +4,7 @@ import helmet from 'helmet';
 import morgan from 'morgan';
 import { env } from './config/env';
 import routes from './routes';
-import { errorHandler } from './middleware';
+import { errorHandler, notFoundHandler } from './middleware';
 
 const app = express();
 
@@ -17,6 +17,8 @@ if (env.NODE_ENV === 'development') {
 }
 
 app.use('/api', routes);
+
+app.use('/api/*', notFoundHandler);
 
 app.use(errorHandler);
 

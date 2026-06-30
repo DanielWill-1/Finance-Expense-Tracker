@@ -4,11 +4,13 @@
 
 @layer base {
   * {
-    @apply border-border;
+    border-color: #3a4a43;
   }
 
   body {
-    @apply bg-surface text-text-primary;
+    background-color: #051424;
+    color: #d4e4fa;
+    font-family: 'Inter', sans-serif;
   }
 
   ::-webkit-scrollbar {
@@ -17,14 +19,21 @@
   }
 
   ::-webkit-scrollbar-track {
-    @apply bg-surface;
+    background: transparent;
   }
 
   ::-webkit-scrollbar-thumb {
-    @apply bg-border rounded-full;
+    background: #262626;
+    border-radius: 4px;
   }
 
   ::-webkit-scrollbar-thumb:hover {
-    @apply bg-text-muted;
+    background: #3a4a43;
+  }
+}
+
+@layer utilities {
+  .tabular-nums {
+    font-variant-numeric: tabular-nums;
   }
 }
