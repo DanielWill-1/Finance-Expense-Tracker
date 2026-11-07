@@ -1,4 +1,4 @@
-import { RuleRepository } from '../repositories/ruleRepository';
+import type { RuleRepository } from '../repositories/ruleRepository';
 
 export interface RuleMatch {
   ruleId: number;
@@ -14,6 +14,20 @@ export class RuleEngineService {
     merchant?: string | null | undefined;
   }): RuleMatch | null {
     const rules = this.ruleRepo.findAllEnabled();
+    return this.evaluateWithRules(transaction, rules);
+  }
+
+  evaluateTransactions(
+    transactions: { description: string; merchant?: string | null | undefined }[],
+  ): (RuleMatch | null)[] {
+    const rules = this.ruleRepo.findAllEnabled();
+    return transactions.map((transaction) => this.evaluateWithRules(transaction, rules));
+  }
+
+  private evaluateWithRules(
+    transaction: { description: string; merchant?: string | null | undefined },
+    rules: ReturnType<RuleRepository['findAllEnabled']>,
+  ): RuleMatch | null {
     const text = transaction.description.toLowerCase();
     const merchant = (transaction.merchant || '').toLowerCase();
 

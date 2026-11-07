@@ -1,22 +1,12 @@
-import { Router } from 'express';
+import { Router, type NextFunction, type Request, type Response } from 'express';
 import multer from 'multer';
-import { resolve } from 'path';
-import { mkdirSync, existsSync } from 'fs';
 import { ImportController } from '../controllers/importController';
 
-const uploadDir = resolve(__dirname, '../../uploads');
-if (!existsSync(uploadDir)) mkdirSync(uploadDir, { recursive: true });
-
-const storage = multer.diskStorage({
-  destination: (_req, _file, cb) => cb(null, uploadDir),
-  filename: (_req, file, cb) => cb(null, `${Date.now()}-${file.originalname}`),
-});
-
 const upload = multer({
-  storage,
-  limits: { fileSize: 50 * 1024 * 1024 },
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 5 * 1024 * 1024, files: 1 },
   fileFilter: (_req, file, cb) => {
-    if (file.mimetype === 'text/csv' || file.originalname.endsWith('.csv')) {
+    if (file.originalname.toLowerCase().endsWith('.csv')) {
       cb(null, true);
     } else {
       cb(new Error('Only CSV files are allowed'));
@@ -27,7 +17,31 @@ const upload = multer({
 const router = Router();
 const controller = new ImportController();
 
-router.post('/', upload.single('file'), controller.upload);
+const uploadAttempts = new Map<string, { count: number; resetAt: number }>();
+function limitUploads(req: Request, res: Response, next: NextFunction) {
+  const now = Date.now();
+  for (const [address, attempt] of uploadAttempts) {
+    if (attempt.resetAt <= now) uploadAttempts.delete(address);
+  }
+  const key = req.ip ?? 'local';
+  const current = uploadAttempts.get(key);
+  if (!current || current.resetAt <= now) {
+    uploadAttempts.set(key, { count: 1, resetAt: now + 60_000 });
+    next();
+    return;
+  }
+  if (current.count >= 10) {
+    res.status(429).json({
+      success: false,
+      error: { code: 'RATE_LIMITED', message: 'Too many uploads. Try again in a minute.' },
+    });
+    return;
+  }
+  current.count++;
+  next();
+}
+
+router.post('/', limitUploads, upload.single('file'), controller.upload);
 router.post('/:id/confirm', controller.confirm);
 router.post('/:id/undo', controller.undo);
 router.get('/history', controller.history);

@@ -1,12 +1,24 @@
 import type { Request, Response } from 'express';
-import { TransactionService } from '../services/transactionService';
-import { createTransactionSchema, updateTransactionSchema, transactionFilterSchema } from '../validators/transaction';
+import type { TransactionService } from '../services/transactionService';
+import {
+  createTransactionSchema,
+  updateTransactionSchema,
+  transactionFilterSchema,
+} from '../validators/transaction';
 import { idParamSchema } from '../validators/common';
 import { parsePagination, parseSort } from '../utils/pagination';
 import { sendSuccess, sendPaginated, sendError } from '../utils/response';
 import { AppError } from '../utils/errors';
 
-const ALLOWED_SORT_FIELDS = ['id', 'amount', 'date', 'description', 'merchant', 'type', 'created_at'];
+const ALLOWED_SORT_FIELDS = [
+  'id',
+  'amount',
+  'date',
+  'description',
+  'merchant',
+  'type',
+  'created_at',
+];
 
 export class TransactionController {
   constructor(private service: TransactionService) {}
@@ -18,19 +30,27 @@ export class TransactionController {
     }
 
     const filters = parsed.data;
-    const pagination = parsePagination({ page: String(filters.page ?? ''), limit: String(filters.limit ?? '') });
+    const pagination = parsePagination({
+      page: String(filters.page ?? ''),
+      limit: String(filters.limit ?? ''),
+    });
     const sort = parseSort(
       { sortBy: filters.sortBy, sortOrder: filters.sortOrder },
       ALLOWED_SORT_FIELDS,
     );
 
-    const { search, page: _p, limit: _l, sortBy: _s, sortOrder: _so, ...filterRest } = filters;
-
-    const result = this.service.list(
-      Object.keys(filterRest).length > 0 || search ? filters : undefined,
-      pagination,
-      sort,
-    );
+    const filterFields = [
+      'type',
+      'categoryId',
+      'accountId',
+      'startDate',
+      'endDate',
+      'minAmount',
+      'maxAmount',
+      'search',
+    ] as const;
+    const hasFilters = filterFields.some((field) => filters[field] !== undefined);
+    const result = this.service.list(hasFilters ? filters : undefined, pagination, sort);
 
     sendPaginated(res, result.data, result.total, pagination.page, pagination.limit);
   };
@@ -55,7 +75,12 @@ export class TransactionController {
   create = (req: Request, res: Response) => {
     const parsed = createTransactionSchema.safeParse(req.body);
     if (!parsed.success) {
-      return sendError(res, parsed.error.errors.map((e) => e.message).join(', '), 400, 'VALIDATION_ERROR');
+      return sendError(
+        res,
+        parsed.error.issues.map((e) => e.message).join(', '),
+        400,
+        'VALIDATION_ERROR',
+      );
     }
 
     const tx = this.service.create(parsed.data);
@@ -70,7 +95,12 @@ export class TransactionController {
 
     const bodyParsed = updateTransactionSchema.safeParse(req.body);
     if (!bodyParsed.success) {
-      return sendError(res, bodyParsed.error.errors.map((e) => e.message).join(', '), 400, 'VALIDATION_ERROR');
+      return sendError(
+        res,
+        bodyParsed.error.issues.map((e) => e.message).join(', '),
+        400,
+        'VALIDATION_ERROR',
+      );
     }
 
     try {

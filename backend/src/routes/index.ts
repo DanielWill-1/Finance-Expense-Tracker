@@ -7,6 +7,7 @@ import analyticsRouter from './analytics';
 import settingsRouter from './settings';
 import importRouter from './imports';
 import rulesRouter from './rules';
+import dataOwnershipRouter from './dataOwnership';
 
 const router = Router();
 
@@ -18,5 +19,6 @@ router.use('/analytics', analyticsRouter);
 router.use('/settings', settingsRouter);
 router.use('/import', importRouter);
 router.use('/rules', rulesRouter);
+router.use('/data', dataOwnershipRouter);
 
 export default router;

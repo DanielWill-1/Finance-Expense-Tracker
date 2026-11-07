@@ -1,210 +1,167 @@
 # GhostLedger
 
-A local-first personal finance application built for privacy, speed, and developer credibility.
+GhostLedger is a local-first personal finance ledger. The React application talks to an Express API backed by SQLite. No sign-in, cloud account, telemetry service, or AI provider is required for the ledger.
 
-No accounts. No telemetry. No cloud dependency. Your financial data stays on your machine.
+The default network binding is loopback. Your database and recovery backups are local files. Keep an independent backup if the data matters; a single-machine local database is not a substitute for an off-device backup.
 
----
+## Delivered
 
-## Features
+- Manual income and expense entry, editing, deletion, account assignment, and category assignment.
+- Account and category setup from Settings.
+- CSV preview, validation, rule-based category suggestions, duplicate review, transactional confirmation, history, and undo.
+- Dashboard cash flow, category totals, recent transactions, largest expenses, six-month burn rate, and recurring payment estimates.
+- Persisted categorization rules and settings.
+- SQLite backup, validated restore with a recovery copy, signed-amount CSV export, and confirmed data purge.
+- Local chat history. The AI backend is unavailable; the chat screen does not analyze finance data.
 
-- **Local-First** — All data stored in SQLite. No sign-ups, no cloud, no vendor lock-in.
-- **Full Ledger** — Income, expenses, accounts, categories, and recurring transactions.
-- **CSV Import** — Drag-and-drop bank statement import with automatic parser detection (HDFC, Chase, and extensible bank formats).
-- **Rule Engine** — Deterministic auto-categorization rules based on contains, starts with, ends with, or regex matching.
-- **Duplicate Detection** — Exact match on amount+date+description, plus fuzzy matching for import safety.
-- **Recurring Detection** — Automatically identify subscriptions and repeating bills via merchant grouping and frequency analysis.
-- **Smart Dashboard** — Cash flow, category breakdown, largest expenses, upcoming recurring, burn rate, and live Net Worth.
-- **Manual Transactions** — Full create/edit modal for individual transaction entry.
-- **AI Assistant** — Chat UI with prompt chips. Multi-provider AI backend planned (OpenAI, Anthropic, Groq, Ollama).
-- **Import History & Undo** — Track every import batch with one-click undo support.
-- **Chat Persistence** — AI chat history survives page navigation via localStorage.
-- **Docker Ready** — One-command setup with `docker compose up`.
+## Limits and roadmap
 
----
+- Built-in statement formats are HDFC, Chase, and a generic CSV layout. Other bank adapters are future work.
+- Generic slash dates that could mean either month/day or day/month are rejected for review. ISO dates are recommended.
+- Recurring payments are estimates. Detection looks for at least three expense entries in three different months, monthly gaps of 26–35 days, and amounts within 5% of the group average. Upcoming dates are projected one month from the last entry and shown only when they fall within 45 days.
+- AI providers, bulk ledger actions, richer rule conditions/actions, and user confirmation of recurring patterns are not implemented.
+- Account balances are user-maintained snapshots. Adding or editing a transaction does not change an account balance.
 
-## Technology Stack
+## Financial model
 
-| Layer      | Technology                          |
-| ---------- | ----------------------------------- |
-| Frontend   | React, Vite, TypeScript, TailwindCSS |
-| Backend    | Express, TypeScript                 |
-| Database   | SQLite, better-sqlite3 (Drizzle for schema definitions) |
-| Validation | Zod                                 |
-| Charts     | Recharts                            |
-| State      | TanStack Query                      |
-| CSV        | PapaParse                           |
-| Uploads    | Multer                              |
-| Icons      | lucide-react                        |
-| Testing    | Vitest, Supertest                   |
-| Packaging  | Docker, Docker Compose              |
-| Security   | Helmet, CORS, Morgan                |
+- A transaction uses the currency of its assigned account. An unassigned transaction uses INR.
+- An account's currency cannot be changed after it has transactions, because doing so would relabel its history.
+- Net Worth is the sum of active account balance snapshots grouped by currency. Negative balances represent liabilities. Transactions are not added to those balances. The single-value Net Worth field is null when active accounts use multiple currencies; the UI shows the separate currency values.
+- Income, expenses, and net savings cover all ledger transactions unless a date range is supplied to the API. Values are kept separate by currency.
+- Savings rate is net savings divided by income for the same period; it is zero when income is zero.
+- Monthly burn is expense total for the six most recent completed calendar months divided by six.
+- Category percentages are calculated within each currency. Monthly trend values are actual totals. A percent change is null when the first month has no baseline and the final month has spending.
+- Amounts are rounded to two decimal places. SQLite aggregate queries sum integer cents.
 
----
+## Requirements
 
-## Architecture
+- Node.js 20.19.x or 22.13.x and later patch releases within those major versions.
+- npm 10 or newer.
+- A C++ build toolchain and Python 3 may be needed if npm cannot use a prebuilt better-sqlite3 binary. On Windows, install the Microsoft C++ Build Tools; on Linux, install make and g++.
+- Docker Engine and the Docker Compose plugin for the container workflow.
 
-```
-GhostLedger/
-├── frontend/               # React + Vite + TypeScript + TailwindCSS
-│   └── src/
-│       ├── pages/          # Route-level page components (Dashboard, Ledger, Assistant, Settings)
-│       ├── components/     # Reusable UI (ImportModal, TransactionModal, ImportHistory, Sidebar, ui/)
-│       ├── layout/         # AppLayout (sidebar + outlet + status bar)
-│       ├── services/       # apiClient (axios), endpoints.ts, chatContext
-│       └── types/          # Shared TypeScript interfaces (api.ts)
-├── backend/                # Express + TypeScript API (port 3001)
-│   └── src/
-│       ├── routes/         # 8 route files (health, transactions, categories, accounts, analytics, settings, imports, rules)
-│       ├── controllers/    # Request handling and response formatting
-│       ├── services/       # Business logic (Transaction, Analytics, RuleEngine, CSVImport, Settings, DuplicateDetection, RecurringDetection, parsers/)
-│       ├── repositories/   # Database access (Transaction, Category, Account, Rule, Settings, Import)
-│       ├── database/       # SQLite connection, Drizzle schemas, seed/migrate
-│       ├── validators/     # Zod schemas for all endpoints
-│       ├── middleware/     # errorHandler, notFoundHandler
-│       ├── types/          # ApiResponse<T>, PaginatedResponse<T>, HealthStatus
-│       ├── utils/          # Logger, errors, response helpers, pagination, constants
-│       └── test/           # 6 test files, 28 tests (Vitest + Supertest, isolated DB per file)
-├── docker/                 # Dockerfile + docker-compose.yml
-├── docs/                   # Architecture notes
-├── pages/                  # Original HTML prototypes (not in build)
-├── NEXT.md                 # Resume point for next development session
-└── package.json            # Root: concurrently runs frontend + backend
-```
+The project uses npm workspaces and one root package lock. Do not run npm install separately inside backend or frontend.
 
-### Backend Layered Architecture
+## Install and run
 
-```
-routes → controllers → services → repositories → database
-```
-
-- **Routes** — Map HTTP methods and paths. Thin and declarative.
-- **Controllers** — Parse requests with Zod, set status codes, orchestrate services.
-- **Services** — Business logic: analytics computation, duplicate checks, rule engine, CSV import pipeline.
-- **Repositories** — Raw SQL via better-sqlite3 prepared statements. Drizzle ORM schema exists for type definitions only.
-- **Database** — SQLite with auto-created tables on startup (CREATE TABLE IF NOT EXISTS).
-- **Middleware** — Validation, error handling, not found.
-
----
-
-## Database Schema (6 tables)
-
-| Table | Key Columns |
-|-------|-------------|
-| **accounts** | id, name, type (bank/card/cash/wallet/investment), balance, currency, is_active |
-| **categories** | id, name, type (income/expense), parent_id (self-ref FK), color, icon |
-| **transactions** | id, amount, date, description, merchant, category_id, account_id, type, import_batch_id, is_recurring, notes, external_id |
-| **import_batches** | id, filename, imported_at, total_rows, imported_rows, skipped_rows, duplicate_rows, status (preview/completed/rolled_back), parser_type |
-| **rules** | id, priority, contains_text, starts_with, ends_with, regex, category_id, enabled |
-| **settings** | id, key (unique), value, updated_at |
-
----
-
-## API Endpoints (36 total)
-
-**Response format (every endpoint):**
-```json
-{ "success": true, "data": {...} }
-{ "success": true, "data": [...], "pagination": { "page", "limit", "total", "totalPages" } }
-{ "success": false, "error": { "code": "...", "message": "..." } }
-```
-
-| Group | Endpoints |
-|-------|-----------|
-| Health | `GET /api/health` |
-| Transactions | `GET/POST /api/transactions`, `GET/PUT/DELETE /api/transactions/:id` |
-| Categories | `GET/POST /api/categories`, `GET/PUT/DELETE /api/categories/:id` |
-| Accounts | `GET/POST /api/accounts`, `GET/PUT/DELETE /api/accounts/:id` |
-| Analytics | `GET /api/analytics/summary`, `/monthly`, `/weekly`, `/categories`, `/spending-trends`, `/largest-expenses`, `/top-merchants`, `/recurring`, `/upcoming-recurring` |
-| Settings | `GET/PUT /api/settings` |
-| Import | `POST /api/import` (multipart CSV), `POST /api/import/:id/confirm`, `POST /api/import/:id/undo`, `GET /api/import/history`, `GET /api/import/history/:id` |
-| Rules | `GET/POST /api/rules`, `PUT/DELETE /api/rules/:id` |
-
----
-
-## CSV Import Pipeline
-
-1. **Upload** — Drag-and-drop or file picker, 50MB max, CSV only
-2. **Parse** — Bank format auto-detection (HDFC → Chase → Generic fallback), PapaParse with header mapping
-3. **Preview** — Full row-by-row preview with validation errors, duplicate flags, rule engine category suggestions
-4. **Review** — Edit descriptions inline, review duplicates/errors before committing
-5. **Validate** — Backend re-validates every row (date format, non-empty description, positive amount, valid type) — throws named ValidationError
-6. **Commit** — Transactional SQLite insert (all-or-nothing)
-7. **Undo** — One-click rollback deletes all transactions from the batch
-
----
-
-## AI Integration Strategy (Planned)
-
-AI is **optional** and **disabled by default**. The chat UI exists with prompt chips and message persistence. Backend AI providers are planned for Phase 8.
-
-| Mode         | Behavior |
-| ------------ | -------- |
-| No AI        | All features work via manual categories, rules, filters, and dashboard views. |
-| Cloud API    | Provider abstraction for OpenAI, Anthropic, Groq when user supplies credentials. |
-| Local Ollama | Private local inference for users who prefer not to send financial context to a cloud provider. |
-
----
-
-## Getting Started
-
-```bash
-# Root (runs both servers via concurrently)
-npm install
+```powershell
+Copy-Item .env.example .env
+npm ci
 npm run dev
-
-# Or run individually
-cd backend && npm install && npm run dev    # http://localhost:3001
-cd frontend && npm install && npm run dev   # http://localhost:5173
 ```
 
-### Docker
+Open the Vite app at http://127.0.0.1:5173. The API listens at http://127.0.0.1:3001. A new database is empty; create an account and categories from Settings, or add optional synthetic demo records with npm run db:seed.
 
-```bash
-docker compose up
+Root commands:
+
+| Command              | Purpose                                                   |
+| -------------------- | --------------------------------------------------------- |
+| npm run dev          | Run the frontend and backend in development               |
+| npm run build        | Build the frontend and backend                            |
+| npm start            | Start the built backend and serve the production frontend |
+| npm test             | Run backend tests against disposable SQLite databases     |
+| npm run lint         | Run frontend and backend ESLint                           |
+| npm run format:check | Check formatting with Prettier                            |
+| npm run db:migrate   | Apply pending schema migrations                           |
+| npm run db:seed      | Add optional sample data                                  |
+| npm run test:e2e     | Run the browser workflows                                 |
+
+For production serving outside Docker, run npm run build, then start with NODE_ENV=production. The API remains loopback-only by default.
+
+## Configuration and storage
+
+The backend loads the project-root .env file in both source and compiled execution. Process environment variables take precedence. The example file contains no credentials.
+
+- HOST defaults to 127.0.0.1.
+- PORT defaults to 3001.
+- ALLOW_REMOTE defaults to false.
+- DATABASE_URL defaults to ./data/ghostledger.db relative to the backend directory. The database uses WAL mode.
+- Docker Compose publishes 127.0.0.1:3001 and stores the database in the ghostledger-data named volume.
+- Docker Compose also accepts BIND_ADDRESS and HOST_PORT. Keep BIND_ADDRESS at 127.0.0.1 for local use.
+
+To intentionally expose the application on a network, set ALLOW_REMOTE=true and configure BIND_ADDRESS to a reachable interface. This removes the local-only host check; it does not add user authentication. Use this only on a network you control.
+
+SQLite schema changes run as ordered migrations during startup. Migration history is stored in schema_migrations. The repository uses parameterized better-sqlite3 queries; Drizzle is not the schema or query authority.
+
+## CSV import
+
+CSV uploads are limited to 5 MB and 25,000 data rows. The preview shows source row numbers, parse/validation errors, duplicate matches, and category selections. Rows with errors are not committed. Duplicate rows are skipped unless explicitly marked to keep. Confirmation is atomic and a processed batch cannot be recommitted; undo removes only that completed batch.
+
+Supported examples are synthetic and live in docs/examples:
+
+- HDFC: Date, Narration, Debit, Credit; dates are day/month/year.
+- Chase: Posting Date, Description, Amount; dates are month/day/year.
+- Generic: date, description, amount; use ISO dates and signed amounts (negative for expenses, positive for income).
+
+Example API request:
+
+```http
+POST /api/import
+Content-Type: multipart/form-data
+
+file=<statement.csv>
 ```
 
----
+The response contains a preview and batch ID. Confirm with POST /api/import/:id/confirm and a JSON body containing rows and optional accountId. Use POST /api/import/:id/undo to undo a completed import. Never upload real financial records to a shared or remote instance.
 
-## Testing
+## Data ownership
 
-```bash
-cd backend && npm test    # 28 tests across 6 files, all passing
-# Frontend: TypeScript strict compiles clean, Vite builds successfully
+- Download a SQLite backup from Settings. Snapshotting uses SQLite's backup API, which includes committed WAL changes.
+- Restore accepts a GhostLedger backup from the current schema version. It checks SQLite integrity, exact table columns, foreign keys, and legacy secret-shaped settings. A recovery snapshot is created before replacement.
+- Recovery snapshots are stored in a backups directory beside the database. The ten newest GhostLedger recovery snapshots are retained.
+- CSV export has stable columns: date, description, signed amount, type, merchant, category, account, currency, external_id, and notes. Text cells that could start spreadsheet formulas are prefixed for safety.
+- Purge requires typing PURGE and creates a recovery snapshot first. It removes transactions, import history, rules, categories, accounts, and settings.
+
+Back up before upgrades. Backups from another schema version must first be restored into a compatible GhostLedger release and migrated there.
+
+## Docker
+
+Docker Desktop (or Docker Engine) and the Compose plugin are required.
+
+```powershell
+docker compose up --build
 ```
 
----
+Open http://127.0.0.1:3001. Compose builds and serves the frontend with the API, runs the container as a non-root user, checks /api/health, and persists the database in ghostledger-data. Stop and restart with docker compose down and docker compose up -d. The named volume survives container rebuilds.
 
-## Implementation Status
+Do not use docker compose down -v unless you intend to delete the persisted volume. Download a backup from Settings before destructive volume operations.
 
-| Phase | Goal | Status |
-|-------|------|--------|
-| 1 | Project Foundation | ✅ Vite + Express + TypeScript + Docker |
-| 2 | Database Layer | ✅ SQLite + Drizzle schemas + auto-create tables |
-| 3 | Backend API | ✅ Full CRUD for all entities |
-| 4 | Frontend Layout | ✅ Sidebar + routing + page shells |
-| 5 | Ledger + CSV Import | ✅ Import pipeline + transaction table + history + undo |
-| 6 | Dashboard + Analytics | ✅ Charts + summary + recurring + largest expenses |
-| 7 | Rule Engine + Duplicates + Recurring | ✅ Auto-categorization + exact/fuzzy dedup + subscription detection |
-| 8 | AI Assistant | ⚠️ Chat UI done, no backend AI providers yet |
-| 9 | Settings (backup/restore/export) | ⚠️ LLM config + rules UI done, no backup/restore/export |
-| 10 | Polish (tests, Docker, docs, CI) | ❌ Not started |
+## Verification
 
-**Recent fixes (audit):** Dashboard null-safety, CSV validation hardening, Add Transaction modal, live Net Worth in sidebar, chat persistence via localStorage.
+```powershell
+npm ci
+npm run format:check
+npm run lint
+npm run build
+npm test
+npm run test:e2e
+```
 
----
+Backend tests create disposable databases and synthetic rows. Browser tests use a separate disposable database. No test needs finance records or cloud AI credentials. Docker image build and persistence checks require a running Docker daemon.
 
-## Design System
+## API groups
 
-- **Dark theme** — Minimal, dense, professional, developer aesthetic.
-- **Color palette** — Background `#051424`, accent `#00e1ab`, text `#d4e4fa`, borders `#3a4a43`
-- **Sidebar** — Persistent left sidebar: Dashboard, Ledger, AI Assistant, Settings. Live Net Worth display.
-- **Typography** — JetBrains Mono for data, Inter/system for UI labels.
-- No neumorphism, glassmorphism, or excessive gradients.
+- Health: GET /api/health
+- Transactions, accounts, categories: CRUD endpoints under /api/transactions, /api/accounts, and /api/categories
+- Analytics: summary, monthly, weekly, category, spending-trend, recurring, and expense endpoints under /api/analytics
+- Settings and rules: /api/settings and /api/rules
+- Import: /api/import
+- Data ownership: /api/data/backup, /api/data/restore, /api/data/export.csv, and DELETE /api/data
 
----
+All API bodies, route identifiers, and supported query parameters are validated with Zod. Success and error payloads use a consistent JSON envelope.
+
+## Troubleshooting
+
+- If better-sqlite3 fails to install, verify the Node version and native build prerequisites, then rerun npm ci.
+- If the browser cannot reach the API, check that the backend is listening on port 3001 and that .env has HOST=127.0.0.1.
+- If a CSV has ambiguous dates or unsupported columns, convert the dates to ISO YYYY-MM-DD and use date, description, amount headers.
+- If restore rejects a file, it may be corrupt or from a different GhostLedger schema version. The current database is left in place on validation failure.
+- If Docker reports that it cannot connect to its engine, start Docker Desktop or the Docker Engine service, then retry.
+
+## Contributing and security
+
+See CONTRIBUTING.md for setup and change checks. Report security issues privately using the process in SECURITY.md.
 
 ## License
 
-MIT — see [LICENSE](./LICENSE) for details.
-
+MIT. See LICENSE.

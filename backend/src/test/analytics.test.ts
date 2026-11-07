@@ -10,10 +10,10 @@ beforeAll(async () => {
   testDb = setupTestDb('analytics');
   const mod = await import('../app');
   app = mod.default;
-});
+}, 30_000);
 
-afterAll(() => {
-  teardownTestDb('analytics', testDb);
+afterAll(async () => {
+  await teardownTestDb('analytics', testDb);
 });
 
 describe('Analytics Endpoints', () => {
@@ -49,7 +49,7 @@ describe('Analytics Endpoints', () => {
       accountId,
       type: 'expense',
     });
-  });
+  }, 30_000);
 
   it('GET /api/analytics/summary returns totals', async () => {
     const res = await request(app).get('/api/analytics/summary');
@@ -69,5 +69,35 @@ describe('Analytics Endpoints', () => {
     const res = await request(app).get('/api/analytics/categories?type=expense');
     expect(res.status).toBe(200);
     expect(Array.isArray(res.body.data)).toBe(true);
+  });
+
+  it('GET /api/analytics/weekly skips malformed transaction dates', async () => {
+    const now = new Date().toISOString();
+    testDb
+      .prepare(
+        `INSERT INTO transactions (amount, date, description, type, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?)`,
+      )
+      .run(25, 'INVALID_DATE', 'Malformed legacy row', 'expense', now, now);
+
+    const weekly = await request(app).get('/api/analytics/weekly');
+    const monthly = await request(app).get('/api/analytics/monthly');
+    expect(weekly.status).toBe(200);
+    expect(monthly.status).toBe(200);
+    expect(
+      weekly.body.data.every(
+        (row: { income: number; expense: number }) =>
+          Number.isFinite(row.income) && Number.isFinite(row.expense),
+      ),
+    ).toBe(true);
+    expect(
+      monthly.body.data.every(
+        (row: { month: string; income: number; expense: number; net: number }) =>
+          /^\d{4}-\d{2}$/.test(row.month) &&
+          Number.isFinite(row.income) &&
+          Number.isFinite(row.expense) &&
+          Number.isFinite(row.net),
+      ),
+    ).toBe(true);
   });
 });

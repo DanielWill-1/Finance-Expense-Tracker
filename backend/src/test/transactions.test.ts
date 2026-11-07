@@ -12,8 +12,8 @@ beforeAll(async () => {
   app = mod.default;
 });
 
-afterAll(() => {
-  teardownTestDb('transactions', testDb);
+afterAll(async () => {
+  await teardownTestDb('transactions', testDb);
 });
 
 describe('Transaction CRUD', () => {

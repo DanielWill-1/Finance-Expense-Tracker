@@ -1,6 +1,11 @@
 import { sqlite } from '../database/connection';
-import type { CreateTransactionInput, UpdateTransactionInput, TransactionFilterInput } from '../validators/transaction';
+import type {
+  CreateTransactionInput,
+  UpdateTransactionInput,
+  TransactionFilterInput,
+} from '../validators/transaction';
 import type { PaginationParams, SortParams } from '../utils/pagination';
+import { roundMoney } from '../utils/money';
 
 export interface TransactionRow {
   id: number;
@@ -17,10 +22,20 @@ export interface TransactionRow {
   external_id: string | null;
   created_at: string;
   updated_at: string;
+  category_name?: string | null;
+  account_name?: string | null;
+  account_currency?: string | null;
 }
 
-const ALLOWED_SORT_FIELDS = ['id', 'amount', 'date', 'description', 'merchant', 'type', 'created_at'];
-
+const ALLOWED_SORT_FIELDS = [
+  'id',
+  'amount',
+  'date',
+  'description',
+  'merchant',
+  'type',
+  'created_at',
+];
 export class TransactionRepository {
   findAll(
     filter?: TransactionFilterInput,
@@ -84,7 +99,7 @@ export class TransactionRepository {
 
     const data = sqlite
       .prepare(
-        `SELECT t.*, c.name as category_name, a.name as account_name
+        `SELECT t.*, c.name as category_name, a.name as account_name, a.currency as account_currency
          FROM transactions t
          LEFT JOIN categories c ON t.category_id = c.id
          LEFT JOIN accounts a ON t.account_id = a.id
@@ -98,7 +113,40 @@ export class TransactionRepository {
   }
 
   findById(id: number): TransactionRow | undefined {
-    return sqlite.prepare('SELECT * FROM transactions WHERE id = ?').get(id) as TransactionRow | undefined;
+    return sqlite.prepare('SELECT * FROM transactions WHERE id = ?').get(id) as
+      TransactionRow | undefined;
+  }
+
+  findAllForExport(page: number, limit: number): { data: TransactionRow[]; total: number } {
+    const totalRow = sqlite.prepare('SELECT COUNT(*) as count FROM transactions').get() as {
+      count: number;
+    };
+    const data = sqlite
+      .prepare(
+        `SELECT t.*, c.name as category_name, a.name as account_name, a.currency as account_currency
+      FROM transactions t LEFT JOIN categories c ON c.id = t.category_id LEFT JOIN accounts a ON a.id = t.account_id
+      ORDER BY t.date ASC, t.id ASC LIMIT ? OFFSET ?`,
+      )
+      .all(limit, (page - 1) * limit) as TransactionRow[];
+    return { data, total: totalRow.count };
+  }
+
+  findLargestExpensesByCurrency(limit: number): TransactionRow[] {
+    return sqlite
+      .prepare(
+        `WITH ranked_expenses AS (
+      SELECT t.*, c.name as category_name, a.name as account_name,
+        COALESCE(a.currency, 'INR') as account_currency,
+        ROW_NUMBER() OVER (PARTITION BY COALESCE(a.currency, 'INR') ORDER BY t.amount DESC, t.id DESC) as currency_rank
+      FROM transactions t
+      LEFT JOIN categories c ON t.category_id = c.id
+      LEFT JOIN accounts a ON t.account_id = a.id
+      WHERE t.type = 'expense'
+    )
+    SELECT * FROM ranked_expenses WHERE currency_rank <= ?
+    ORDER BY account_currency ASC, amount DESC, id DESC`,
+      )
+      .all(limit) as TransactionRow[];
   }
 
   create(input: CreateTransactionInput): TransactionRow {
@@ -110,7 +158,7 @@ export class TransactionRepository {
          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       )
       .run(
-        input.amount,
+        roundMoney(input.amount),
         input.date,
         input.description,
         input.merchant ?? null,
@@ -136,7 +184,7 @@ export class TransactionRepository {
 
     if (input.amount !== undefined) {
       updates.push('amount = ?');
-      bindings.push(input.amount);
+      bindings.push(roundMoney(input.amount));
     }
     if (input.date !== undefined) {
       updates.push('date = ?');
@@ -202,7 +250,9 @@ export class TransactionRepository {
       bindings.push(accountId);
     }
     const row = sqlite
-      .prepare(`SELECT COALESCE(SUM(amount), 0) as total FROM transactions WHERE ${conditions.join(' AND ')}`)
+      .prepare(
+        `SELECT COALESCE(SUM(CAST(ROUND(amount * 100) AS INTEGER)), 0) / 100.0 as total FROM transactions WHERE ${conditions.join(' AND ')}`,
+      )
       .get(...bindings) as { total: number };
     return row.total;
   }
@@ -223,19 +273,84 @@ export class TransactionRepository {
       bindings.push(accountId);
     }
     const row = sqlite
-      .prepare(`SELECT COALESCE(SUM(amount), 0) as total FROM transactions WHERE ${conditions.join(' AND ')}`)
+      .prepare(
+        `SELECT COALESCE(SUM(CAST(ROUND(amount * 100) AS INTEGER)), 0) / 100.0 as total FROM transactions WHERE ${conditions.join(' AND ')}`,
+      )
       .get(...bindings) as { total: number };
     return row.total;
   }
 
-  getMonthlyTotals(year?: number, months?: number, accountId?: number): { month: string; income: number; expense: number }[] {
-    const limit = months ?? 12;
+  getCashflowByCurrency(
+    startDate?: string,
+    endDate?: string,
+    accountId?: number,
+  ): { currency: string; income: number; expense: number }[] {
+    const conditions: string[] = ['1 = 1'];
     const bindings: (string | number)[] = [];
-    let dateFilter = '';
-    if (year) {
-      dateFilter = `AND strftime('%Y', date) = ?`;
-      bindings.push(String(year));
+    if (startDate) {
+      conditions.push('t.date >= ?');
+      bindings.push(startDate);
     }
+    if (endDate) {
+      conditions.push('t.date <= ?');
+      bindings.push(endDate);
+    }
+    if (accountId) {
+      conditions.push('t.account_id = ?');
+      bindings.push(accountId);
+    }
+    return sqlite
+      .prepare(
+        `SELECT COALESCE(a.currency, 'INR') as currency,
+      COALESCE(SUM(CASE WHEN t.type = 'income' THEN CAST(ROUND(t.amount * 100) AS INTEGER) ELSE 0 END), 0) / 100.0 as income,
+      COALESCE(SUM(CASE WHEN t.type = 'expense' THEN CAST(ROUND(t.amount * 100) AS INTEGER) ELSE 0 END), 0) / 100.0 as expense
+      FROM transactions t LEFT JOIN accounts a ON a.id = t.account_id
+      WHERE ${conditions.join(' AND ')} GROUP BY COALESCE(a.currency, 'INR') ORDER BY currency`,
+      )
+      .all(...bindings) as { currency: string; income: number; expense: number }[];
+  }
+
+  getMonthlyCategoryTotals(
+    startDate: string,
+    endDate: string,
+  ): {
+    month: string;
+    category_id: number | null;
+    category_name: string | null;
+    currency: string;
+    total: number;
+  }[] {
+    return sqlite
+      .prepare(
+        `SELECT strftime('%Y-%m', t.date) as month, t.category_id, c.name as category_name,
+      COALESCE(a.currency, 'INR') as currency, COALESCE(SUM(CAST(ROUND(t.amount * 100) AS INTEGER)), 0) / 100.0 as total
+      FROM transactions t LEFT JOIN categories c ON c.id = t.category_id LEFT JOIN accounts a ON a.id = t.account_id
+      WHERE t.type = 'expense' AND t.date >= ? AND t.date < ? GROUP BY month, t.category_id, c.name, currency ORDER BY month`,
+      )
+      .all(startDate, endDate) as {
+      month: string;
+      category_id: number | null;
+      category_name: string | null;
+      currency: string;
+      total: number;
+    }[];
+  }
+
+  getMonthlyTotals(
+    year?: number,
+    months?: number,
+    accountId?: number,
+  ): { month: string; currency: string; income: number; expense: number }[] {
+    const requestedMonths = Math.min(Math.max(Math.floor(months ?? 12), 1), 24);
+    const windowMonths = year ? Math.min(requestedMonths, 12) : requestedMonths;
+    const end = year
+      ? new Date(Date.UTC(year + 1, 0, 1))
+      : new Date(Date.UTC(new Date().getUTCFullYear(), new Date().getUTCMonth() + 1, 1));
+    const start = new Date(Date.UTC(end.getUTCFullYear(), end.getUTCMonth() - windowMonths, 1));
+    const bindings: (string | number)[] = [
+      start.toISOString().slice(0, 10),
+      end.toISOString().slice(0, 10),
+    ];
     if (accountId) {
       bindings.push(accountId);
     }
@@ -243,16 +358,16 @@ export class TransactionRepository {
     const rows = sqlite
       .prepare(
         `SELECT
-          strftime('%Y-%m', date) as month,
-          COALESCE(SUM(CASE WHEN type = 'income' THEN amount ELSE 0 END), 0) as income,
-          COALESCE(SUM(CASE WHEN type = 'expense' THEN amount ELSE 0 END), 0) as expense
-         FROM transactions
-         WHERE date IS NOT NULL AND date != '' ${dateFilter} ${accountId ? 'AND account_id = ?' : ''}
-         GROUP BY month
-         ORDER BY month DESC
-         LIMIT ?`,
+          strftime('%Y-%m', t.date) as month,
+          COALESCE(a.currency, 'INR') as currency,
+          COALESCE(SUM(CASE WHEN t.type = 'income' THEN CAST(ROUND(t.amount * 100) AS INTEGER) ELSE 0 END), 0) / 100.0 as income,
+          COALESCE(SUM(CASE WHEN t.type = 'expense' THEN CAST(ROUND(t.amount * 100) AS INTEGER) ELSE 0 END), 0) / 100.0 as expense
+         FROM transactions t LEFT JOIN accounts a ON a.id = t.account_id
+         WHERE t.date IS NOT NULL AND t.date != '' AND t.date >= ? AND t.date < ? ${accountId ? 'AND t.account_id = ?' : ''}
+         GROUP BY month, currency
+           ORDER BY month DESC`,
       )
-      .all(...bindings, limit) as { month: string; income: number; expense: number }[];
+      .all(...bindings) as { month: string; currency: string; income: number; expense: number }[];
 
     return rows.filter((r) => r.month !== null).reverse();
   }
@@ -262,7 +377,12 @@ export class TransactionRepository {
     startDate?: string,
     endDate?: string,
     accountId?: number,
-  ): { category_id: number | null; category_name: string | null; total: number }[] {
+  ): {
+    category_id: number | null;
+    category_name: string | null;
+    currency: string;
+    total: number;
+  }[] {
     const conditions: string[] = [`t.type = ?`];
     const bindings: (string | number)[] = [type];
     if (startDate) {
@@ -280,13 +400,19 @@ export class TransactionRepository {
 
     return sqlite
       .prepare(
-        `SELECT t.category_id, c.name as category_name, COALESCE(SUM(t.amount), 0) as total
+        `SELECT t.category_id, c.name as category_name, COALESCE(a.currency, 'INR') as currency, COALESCE(SUM(CAST(ROUND(t.amount * 100) AS INTEGER)), 0) / 100.0 as total
          FROM transactions t
          LEFT JOIN categories c ON t.category_id = c.id
+         LEFT JOIN accounts a ON a.id = t.account_id
          WHERE ${conditions.join(' AND ')}
-         GROUP BY t.category_id
+         GROUP BY t.category_id, c.name, currency
          ORDER BY total DESC`,
       )
-      .all(...bindings) as { category_id: number | null; category_name: string | null; total: number }[];
+      .all(...bindings) as {
+      category_id: number | null;
+      category_name: string | null;
+      currency: string;
+      total: number;
+    }[];
   }
 }

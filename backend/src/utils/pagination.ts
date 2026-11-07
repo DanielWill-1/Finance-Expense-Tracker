@@ -12,10 +12,7 @@ export interface SortParams {
   sortOrder: SortOrder;
 }
 
-export function parsePagination(query: {
-  page?: string;
-  limit?: string;
-}): PaginationParams {
+export function parsePagination(query: { page?: string; limit?: string }): PaginationParams {
   let page = Number(query.page) || DEFAULT_PAGE;
   let limit = Number(query.limit) || DEFAULT_LIMIT;
 
@@ -30,11 +27,15 @@ export function parsePagination(query: {
   };
 }
 
-export function parseSort(query: {
-  sortBy?: string | undefined;
-  sortOrder?: string | undefined;
-}, allowedFields: string[]): SortParams {
-  const sortBy = query.sortBy && allowedFields.includes(query.sortBy) ? query.sortBy : allowedFields[0] || 'id';
+export function parseSort(
+  query: {
+    sortBy?: string | undefined;
+    sortOrder?: string | undefined;
+  },
+  allowedFields: string[],
+): SortParams {
+  const sortBy =
+    query.sortBy && allowedFields.includes(query.sortBy) ? query.sortBy : allowedFields[0] || 'id';
   const sortOrder: SortOrder =
     query.sortOrder === 'asc' || query.sortOrder === 'desc' ? query.sortOrder : DEFAULT_SORT_ORDER;
   return { sortBy, sortOrder };

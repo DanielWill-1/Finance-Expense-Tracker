@@ -1,7 +1,14 @@
 import type { Request, Response } from 'express';
 import { AnalyticsService } from '../services/analyticsService';
 import { TransactionRepository } from '../repositories/transactionRepository';
-import { analyticsSummaryQuerySchema, analyticsMonthlyQuerySchema, analyticsCategoriesQuerySchema } from '../validators/analytics';
+import {
+  analyticsSummaryQuerySchema,
+  analyticsMonthlyQuerySchema,
+  analyticsCategoriesQuerySchema,
+  analyticsWeeksQuerySchema,
+  analyticsMonthsQuerySchema,
+  analyticsLimitQuerySchema,
+} from '../validators/analytics';
 import { sendSuccess, sendError } from '../utils/response';
 
 export class AnalyticsController {
@@ -10,32 +17,61 @@ export class AnalyticsController {
   summary = (req: Request, res: Response) => {
     const parsed = analyticsSummaryQuerySchema.safeParse(req.query);
     if (!parsed.success)
-      return sendError(res, parsed.error.errors.map((e) => e.message).join(', '), 400, 'VALIDATION_ERROR');
+      return sendError(
+        res,
+        parsed.error.issues.map((e) => e.message).join(', '),
+        400,
+        'VALIDATION_ERROR',
+      );
 
-    const result = this.service.getSummary(parsed.data.startDate, parsed.data.endDate, parsed.data.accountId);
+    const result = this.service.getSummary(
+      parsed.data.startDate,
+      parsed.data.endDate,
+      parsed.data.accountId,
+    );
     sendSuccess(res, result);
   };
 
   monthly = (req: Request, res: Response) => {
     const parsed = analyticsMonthlyQuerySchema.safeParse(req.query);
     if (!parsed.success)
-      return sendError(res, parsed.error.errors.map((e) => e.message).join(', '), 400, 'VALIDATION_ERROR');
+      return sendError(
+        res,
+        parsed.error.issues.map((e) => e.message).join(', '),
+        400,
+        'VALIDATION_ERROR',
+      );
 
-    const result = this.service.getMonthlyTotals(parsed.data.year, parsed.data.months, parsed.data.accountId);
+    const result = this.service.getMonthlyTotals(
+      parsed.data.year,
+      parsed.data.months,
+      parsed.data.accountId,
+    );
     sendSuccess(res, result);
   };
 
   weekly = (req: Request, res: Response) => {
-    const weeks = Number(req.query.weeks) || 12;
-    const accountId = req.query.accountId ? Number(req.query.accountId) : undefined;
-    const result = this.service.getWeeklyTotals(weeks, accountId);
+    const parsed = analyticsWeeksQuerySchema.safeParse(req.query);
+    if (!parsed.success)
+      return sendError(
+        res,
+        parsed.error.issues.map((issue) => issue.message).join(', '),
+        400,
+        'VALIDATION_ERROR',
+      );
+    const result = this.service.getWeeklyTotals(parsed.data.weeks, parsed.data.accountId);
     sendSuccess(res, result);
   };
 
   categories = (req: Request, res: Response) => {
     const parsed = analyticsCategoriesQuerySchema.safeParse(req.query);
     if (!parsed.success)
-      return sendError(res, parsed.error.errors.map((e) => e.message).join(', '), 400, 'VALIDATION_ERROR');
+      return sendError(
+        res,
+        parsed.error.issues.map((e) => e.message).join(', '),
+        400,
+        'VALIDATION_ERROR',
+      );
 
     const result = this.service.getCategoryTotals(
       parsed.data.type ?? 'expense',
@@ -47,20 +83,41 @@ export class AnalyticsController {
   };
 
   spendingTrends = (req: Request, res: Response) => {
-    const months = Number(req.query.months) || 6;
-    const result = this.service.getSpendingTrends(months);
+    const parsed = analyticsMonthsQuerySchema.safeParse(req.query);
+    if (!parsed.success)
+      return sendError(
+        res,
+        parsed.error.issues.map((issue) => issue.message).join(', '),
+        400,
+        'VALIDATION_ERROR',
+      );
+    const result = this.service.getSpendingTrends(parsed.data.months);
     sendSuccess(res, result);
   };
 
   largestExpenses = (req: Request, res: Response) => {
-    const limit = Number(req.query.limit) || 10;
-    const result = this.service.getLargestExpenses(limit);
+    const parsed = analyticsLimitQuerySchema.safeParse(req.query);
+    if (!parsed.success)
+      return sendError(
+        res,
+        parsed.error.issues.map((issue) => issue.message).join(', '),
+        400,
+        'VALIDATION_ERROR',
+      );
+    const result = this.service.getLargestExpenses(parsed.data.limit);
     sendSuccess(res, result);
   };
 
   topMerchants = (req: Request, res: Response) => {
-    const limit = Number(req.query.limit) || 10;
-    const result = this.service.getTopMerchants(limit);
+    const parsed = analyticsLimitQuerySchema.safeParse(req.query);
+    if (!parsed.success)
+      return sendError(
+        res,
+        parsed.error.issues.map((issue) => issue.message).join(', '),
+        400,
+        'VALIDATION_ERROR',
+      );
+    const result = this.service.getTopMerchants(parsed.data.limit);
     sendSuccess(res, result);
   };
 

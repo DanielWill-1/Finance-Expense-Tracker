@@ -12,8 +12,8 @@ beforeAll(async () => {
   app = mod.default;
 });
 
-afterAll(() => {
-  teardownTestDb('categories', testDb);
+afterAll(async () => {
+  await teardownTestDb('categories', testDb);
 });
 
 describe('Category CRUD', () => {
@@ -46,7 +46,9 @@ describe('Category CRUD', () => {
   });
 
   it('PUT /api/categories/:id updates a category', async () => {
-    const res = await request(app).put(`/api/categories/${categoryId}`).send({ name: 'Updated Category' });
+    const res = await request(app)
+      .put(`/api/categories/${categoryId}`)
+      .send({ name: 'Updated Category' });
     expect(res.status).toBe(200);
     expect(res.body.data.name).toBe('Updated Category');
   });

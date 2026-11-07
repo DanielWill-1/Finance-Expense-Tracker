@@ -1,4 +1,5 @@
 export interface ParsedRow {
+  sourceRow: number;
   date: string;
   description: string;
   amount: number;

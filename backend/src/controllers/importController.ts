@@ -1,11 +1,10 @@
 import type { Request, Response } from 'express';
-import { CSVImportService } from '../services/csvImportService';
+import { CSVImportService, type ImportCommitRow } from '../services/csvImportService';
 import { idParamSchema } from '../validators/common';
-import { importHistoryQuerySchema } from '../validators/import';
+import { importCommitSchema, importHistoryQuerySchema } from '../validators/import';
 import { parsePagination, parseSort } from '../utils/pagination';
 import { sendSuccess, sendPaginated, sendError } from '../utils/response';
 import { AppError } from '../utils/errors';
-import { readFileSync, unlinkSync } from 'fs';
 
 const ALLOWED_SORT_FIELDS = ['id', 'filename', 'imported_at', 'status'];
 
@@ -19,21 +18,15 @@ export class ImportController {
         return;
       }
 
-      if (!req.file.originalname.endsWith('.csv')) {
+      if (!req.file.originalname.toLowerCase().endsWith('.csv')) {
         sendError(res, 'Only CSV files are supported', 400, 'VALIDATION_ERROR');
         return;
       }
 
-      const fileContent = readFileSync(req.file.path, 'utf-8');
+      const fileContent = req.file.buffer.toString('utf-8');
       const preview = this.service.createPreview(fileContent, req.file.originalname);
-
-      try { unlinkSync(req.file.path); } catch { /* ignore */ }
-
       sendSuccess(res, preview, 201);
     } catch (err) {
-      if (req.file) {
-        try { unlinkSync(req.file.path); } catch { /* ignore */ }
-      }
       if (err instanceof AppError) {
         sendError(res, err.message, err.statusCode, err.code);
       } else {
@@ -49,19 +42,34 @@ export class ImportController {
       return;
     }
 
-    const { rows, accountId } = req.body as {
-      rows: { date: string; description: string; amount: number; type: 'income' | 'expense'; merchant?: string; categoryId?: number | null }[];
-      accountId?: number;
-    };
-
-    if (!rows || !Array.isArray(rows) || rows.length === 0) {
-      sendError(res, 'No rows provided for import', 400, 'VALIDATION_ERROR');
+    const bodyParsed = importCommitSchema.safeParse(req.body);
+    if (!bodyParsed.success) {
+      sendError(
+        res,
+        bodyParsed.error.issues.map((issue) => issue.message).join(', '),
+        400,
+        'VALIDATION_ERROR',
+      );
       return;
     }
 
     try {
-      const imported = this.service.commitImport(idParsed.data.id, rows, accountId);
-      sendSuccess(res, { imported, batchId: idParsed.data.id });
+      const rows: ImportCommitRow[] = bodyParsed.data.rows.map((row) => ({
+        date: row.date,
+        description: row.description,
+        amount: row.amount,
+        type: row.type,
+        merchant: row.merchant ?? null,
+        categoryId: row.categoryId ?? null,
+        externalId: row.externalId ?? null,
+        keepDuplicate: row.keepDuplicate,
+      }));
+      const result = this.service.commitImport(
+        idParsed.data.id,
+        rows,
+        bodyParsed.data.accountId ?? undefined,
+      );
+      sendSuccess(res, { ...result, batchId: idParsed.data.id });
     } catch (err) {
       if (err instanceof AppError) {
         sendError(res, err.message, err.statusCode, err.code);
@@ -98,8 +106,14 @@ export class ImportController {
     }
 
     const filters = parsed.data;
-    const pagination = parsePagination({ page: String(filters.page ?? ''), limit: String(filters.limit ?? '') });
-    const sort = parseSort({ sortBy: filters.sortBy, sortOrder: filters.sortOrder }, ALLOWED_SORT_FIELDS);
+    const pagination = parsePagination({
+      page: String(filters.page ?? ''),
+      limit: String(filters.limit ?? ''),
+    });
+    const sort = parseSort(
+      { sortBy: filters.sortBy, sortOrder: filters.sortOrder },
+      ALLOWED_SORT_FIELDS,
+    );
 
     const result = this.service.getHistory(
       filters.status ? { status: filters.status } : undefined,

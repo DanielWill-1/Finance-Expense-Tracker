@@ -1,7 +1,7 @@
 import type { Request, Response } from 'express';
 import { CategoryRepository } from '../repositories/categoryRepository';
 import { createCategorySchema, updateCategorySchema } from '../validators/category';
-import { idParamSchema } from '../validators/common';
+import { categoryListQuerySchema, idParamSchema } from '../validators/common';
 import { parsePagination, parseSort } from '../utils/pagination';
 import { sendSuccess, sendPaginated, sendError } from '../utils/response';
 
@@ -11,9 +11,20 @@ export class CategoryController {
   private repo = new CategoryRepository();
 
   list = (req: Request, res: Response) => {
-    const pagination = parsePagination(req.query);
-    const sort = parseSort(req.query, ALLOWED_SORT_FIELDS);
-    const type = typeof req.query.type === 'string' ? req.query.type : undefined;
+    const parsed = categoryListQuerySchema.safeParse(req.query);
+    if (!parsed.success)
+      return sendError(
+        res,
+        parsed.error.issues.map((issue) => issue.message).join(', '),
+        400,
+        'VALIDATION_ERROR',
+      );
+    const pagination = parsePagination({
+      page: String(parsed.data.page ?? ''),
+      limit: String(parsed.data.limit ?? ''),
+    });
+    const sort = parseSort(parsed.data, ALLOWED_SORT_FIELDS);
+    const type = parsed.data.type;
 
     const result = this.repo.findAll({ type, ...pagination, ...sort });
     sendPaginated(res, result.data, result.total, pagination.page, pagination.limit);
@@ -24,14 +35,20 @@ export class CategoryController {
     if (!parsed.success) return sendError(res, 'Invalid category ID', 400, 'VALIDATION_ERROR');
 
     const cat = this.repo.findById(parsed.data.id);
-    if (!cat) return sendError(res, `Category with id ${parsed.data.id} not found`, 404, 'NOT_FOUND');
+    if (!cat)
+      return sendError(res, `Category with id ${parsed.data.id} not found`, 404, 'NOT_FOUND');
     sendSuccess(res, cat);
   };
 
   create = (req: Request, res: Response) => {
     const parsed = createCategorySchema.safeParse(req.body);
     if (!parsed.success)
-      return sendError(res, parsed.error.errors.map((e) => e.message).join(', '), 400, 'VALIDATION_ERROR');
+      return sendError(
+        res,
+        parsed.error.issues.map((e) => e.message).join(', '),
+        400,
+        'VALIDATION_ERROR',
+      );
 
     const cat = this.repo.create(parsed.data);
     sendSuccess(res, cat, 201);
@@ -43,10 +60,16 @@ export class CategoryController {
 
     const bodyParsed = updateCategorySchema.safeParse(req.body);
     if (!bodyParsed.success)
-      return sendError(res, bodyParsed.error.errors.map((e) => e.message).join(', '), 400, 'VALIDATION_ERROR');
+      return sendError(
+        res,
+        bodyParsed.error.issues.map((e) => e.message).join(', '),
+        400,
+        'VALIDATION_ERROR',
+      );
 
     const cat = this.repo.update(idParsed.data.id, bodyParsed.data);
-    if (!cat) return sendError(res, `Category with id ${idParsed.data.id} not found`, 404, 'NOT_FOUND');
+    if (!cat)
+      return sendError(res, `Category with id ${idParsed.data.id} not found`, 404, 'NOT_FOUND');
     sendSuccess(res, cat);
   };
 
@@ -55,7 +78,8 @@ export class CategoryController {
     if (!parsed.success) return sendError(res, 'Invalid category ID', 400, 'VALIDATION_ERROR');
 
     const deleted = this.repo.delete(parsed.data.id);
-    if (!deleted) return sendError(res, `Category with id ${parsed.data.id} not found`, 404, 'NOT_FOUND');
+    if (!deleted)
+      return sendError(res, `Category with id ${parsed.data.id} not found`, 404, 'NOT_FOUND');
     sendSuccess(res, null, 204);
   };
 }

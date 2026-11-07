@@ -16,7 +16,10 @@ export interface CategoryRow {
 const ALLOWED_SORT_FIELDS = ['id', 'name', 'type', 'created_at'];
 
 export class CategoryRepository {
-  findAll(params?: { type?: string | undefined } & PaginationParams & SortParams): { data: CategoryRow[]; total: number } {
+  findAll(params?: { type?: string | undefined } & PaginationParams & SortParams): {
+    data: CategoryRow[];
+    total: number;
+  } {
     const conditions: string[] = [];
     const bindings: (string | number)[] = [];
 
@@ -26,13 +29,16 @@ export class CategoryRepository {
     }
 
     const where = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
-    const countRow = sqlite.prepare(`SELECT COUNT(*) as count FROM categories ${where}`).get(...bindings) as { count: number };
+    const countRow = sqlite
+      .prepare(`SELECT COUNT(*) as count FROM categories ${where}`)
+      .get(...bindings) as { count: number };
     const total = countRow.count;
 
     const page = params?.page ?? 1;
     const limit = params?.limit ?? 50;
     const offset = (page - 1) * limit;
-    const sortBy = params?.sortBy && ALLOWED_SORT_FIELDS.includes(params.sortBy) ? params.sortBy : 'created_at';
+    const sortBy =
+      params?.sortBy && ALLOWED_SORT_FIELDS.includes(params.sortBy) ? params.sortBy : 'created_at';
     const sortOrder = params?.sortOrder === 'asc' ? 'ASC' : 'DESC';
 
     const data = sqlite
@@ -47,7 +53,8 @@ export class CategoryRepository {
   }
 
   findById(id: number): CategoryRow | undefined {
-    return sqlite.prepare('SELECT * FROM categories WHERE id = ?').get(id) as CategoryRow | undefined;
+    return sqlite.prepare('SELECT * FROM categories WHERE id = ?').get(id) as
+      CategoryRow | undefined;
   }
 
   create(input: CreateCategoryInput): CategoryRow {
@@ -57,7 +64,15 @@ export class CategoryRepository {
         `INSERT INTO categories (name, type, parent_id, color, icon, created_at, updated_at)
          VALUES (?, ?, ?, ?, ?, ?, ?)`,
       )
-      .run(input.name, input.type ?? 'expense', input.parentId ?? null, input.color ?? null, input.icon ?? null, now, now);
+      .run(
+        input.name,
+        input.type ?? 'expense',
+        input.parentId ?? null,
+        input.color ?? null,
+        input.icon ?? null,
+        now,
+        now,
+      );
     return this.findById(Number(result.lastInsertRowid))!;
   }
 

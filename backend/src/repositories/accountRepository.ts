@@ -1,6 +1,7 @@
 import { sqlite } from '../database/connection';
 import type { CreateAccountInput, UpdateAccountInput } from '../validators/account';
 import type { PaginationParams, SortParams } from '../utils/pagination';
+import { ConflictError } from '../utils/errors';
 
 export interface AccountRow {
   id: number;
@@ -14,16 +15,20 @@ export interface AccountRow {
 }
 
 const ALLOWED_SORT_FIELDS = ['id', 'name', 'type', 'balance', 'created_at'];
+const roundMoney = (value: number) => Math.round((value + Number.EPSILON) * 100) / 100;
 
 export class AccountRepository {
   findAll(params?: PaginationParams & SortParams): { data: AccountRow[]; total: number } {
-    const countRow = sqlite.prepare('SELECT COUNT(*) as count FROM accounts').get() as { count: number };
+    const countRow = sqlite.prepare('SELECT COUNT(*) as count FROM accounts').get() as {
+      count: number;
+    };
     const total = countRow.count;
 
     const page = params?.page ?? 1;
     const limit = params?.limit ?? 50;
     const offset = (page - 1) * limit;
-    const sortBy = params?.sortBy && ALLOWED_SORT_FIELDS.includes(params.sortBy) ? params.sortBy : 'created_at';
+    const sortBy =
+      params?.sortBy && ALLOWED_SORT_FIELDS.includes(params.sortBy) ? params.sortBy : 'created_at';
     const sortOrder = params?.sortOrder === 'asc' ? 'ASC' : 'DESC';
 
     const data = sqlite
@@ -35,6 +40,14 @@ export class AccountRepository {
 
   findAllSimple(): AccountRow[] {
     return sqlite.prepare('SELECT * FROM accounts ORDER BY name').all() as AccountRow[];
+  }
+
+  getActiveBalancesByCurrency(): { currency: string; balance: number }[] {
+    return sqlite
+      .prepare(
+        'SELECT currency, COALESCE(SUM(CAST(ROUND(balance * 100) AS INTEGER)), 0) / 100.0 as balance FROM accounts WHERE is_active = 1 GROUP BY currency ORDER BY currency',
+      )
+      .all() as { currency: string; balance: number }[];
   }
 
   findById(id: number): AccountRow | undefined {
@@ -49,7 +62,15 @@ export class AccountRepository {
         `INSERT INTO accounts (name, type, balance, currency, is_active, created_at, updated_at)
          VALUES (?, ?, ?, ?, ?, ?, ?)`,
       )
-      .run(input.name, input.type ?? 'bank', input.balance ?? 0, input.currency ?? 'INR', isActive ? 1 : 0, now, now);
+      .run(
+        input.name,
+        input.type ?? 'bank',
+        roundMoney(input.balance ?? 0),
+        input.currency ?? 'INR',
+        isActive ? 1 : 0,
+        now,
+        now,
+      );
     return this.findById(Number(result.lastInsertRowid))!;
   }
 
@@ -71,9 +92,18 @@ export class AccountRepository {
     }
     if (input.balance !== undefined) {
       updates.push('balance = ?');
-      bindings.push(input.balance);
+      bindings.push(roundMoney(input.balance));
     }
     if (input.currency !== undefined) {
+      if (input.currency !== existing.currency) {
+        const { count } = sqlite
+          .prepare('SELECT COUNT(*) as count FROM transactions WHERE account_id = ?')
+          .get(id) as { count: number };
+        if (count > 0)
+          throw new ConflictError(
+            'Account currency cannot change while transactions use it. Create a new account to preserve historical currency values.',
+          );
+      }
       updates.push('currency = ?');
       bindings.push(input.currency);
     }
@@ -93,6 +123,14 @@ export class AccountRepository {
   }
 
   delete(id: number): boolean {
+    const transactionCount = sqlite
+      .prepare('SELECT COUNT(*) as count FROM transactions WHERE account_id = ?')
+      .get(id) as { count: number };
+    if (transactionCount.count > 0) {
+      throw new ConflictError(
+        'This account has transactions. Deactivate it to preserve ledger history.',
+      );
+    }
     const result = sqlite.prepare('DELETE FROM accounts WHERE id = ?').run(id);
     return result.changes > 0;
   }

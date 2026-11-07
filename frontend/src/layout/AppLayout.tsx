@@ -11,15 +11,13 @@ export default function AppLayout() {
   return (
     <div className="flex h-screen overflow-hidden">
       <Sidebar onAddTransaction={() => setShowAddTransaction(true)} />
-      <div className="ml-64 flex-1 flex flex-col overflow-hidden">
+      <div className="ml-14 md:ml-64 min-w-0 flex-1 flex flex-col overflow-hidden">
         <main className="flex-1 overflow-y-auto">
           <Outlet />
         </main>
         <StatusBar />
       </div>
-      {showAddTransaction && (
-        <TransactionModal onClose={() => setShowAddTransaction(false)} />
-      )}
+      {showAddTransaction && <TransactionModal onClose={() => setShowAddTransaction(false)} />}
     </div>
   );
 }
@@ -39,14 +37,14 @@ function StatusBar() {
   return (
     <div className="h-7 border-t border-outline-variant bg-surface px-4 flex items-center justify-between">
       <div className="flex items-center gap-2">
-        <div className={`h-2 w-2 rounded-full ${isConnected ? 'bg-primary-fixed-dim' : 'bg-error'}`} />
+        <div
+          className={`h-2 w-2 rounded-full ${isConnected ? 'bg-primary-fixed-dim' : 'bg-error'}`}
+        />
         <span className="text-[11px] font-mono text-on-surface-variant uppercase tracking-wider">
           {isConnected ? 'System Healthy' : 'Disconnected'}
         </span>
       </div>
-      <span className="text-[11px] font-mono text-on-surface-variant">
-        GhostLedger v1.0.0
-      </span>
+      <span className="text-[11px] font-mono text-on-surface-variant">GhostLedger v1.0.0</span>
     </div>
   );
 }

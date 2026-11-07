@@ -12,8 +12,8 @@ beforeAll(async () => {
   app = mod.default;
 });
 
-afterAll(() => {
-  teardownTestDb('health', testDb);
+afterAll(async () => {
+  await teardownTestDb('health', testDb);
 });
 
 describe('Health Endpoint', () => {

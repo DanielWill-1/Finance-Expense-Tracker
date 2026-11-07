@@ -1,85 +1,56 @@
-# GhostLedger Implementation Instructions
+﻿# GhostLedger repository guidance
 
-## HTML Prototype Conversion
+These instructions describe the current implementation. Read `README.md`, `docs/architecture.md`, and `docs/project-audit.md` before changing product behavior. `prompt.md` contains the current repair requirements. `master_prompt.md` records broader product goals and is not a list of shipped features.
 
-Whenever I upload an HTML prototype:
+## Architecture
 
-- Treat the HTML as the UI source of truth.
-- Preserve spacing, layout, proportions, and hierarchy.
-- Do not redesign the interface unless explicitly instructed.
-- Convert the HTML into idiomatic React + TypeScript components.
-- Extract reusable components when appropriate.
-- Replace inline styles with TailwindCSS utility classes.
-- Replace imperative JavaScript with React state and hooks.
-- Ensure accessibility (ARIA, labels, keyboard navigation).
-- Ensure the generated components integrate with the existing project architecture.
-- Make all layouts responsive.
-- Preserve all visual styling while modernizing the implementation.
+Keep the existing layered backend:
 
-## Architecture Enforcement
+```text
+routes → controllers → services → repositories → SQLite
+```
 
-### Backend
+- Routes bind URLs, middleware, and controllers. They do not access SQLite.
+- Controllers validate request data and map service results to the API response format.
+- Services own business rules and workflows.
+- Repositories own parameterized `better-sqlite3` queries and writes.
+- Use prepared SQL. Drizzle is not used by this project.
+- Make schema changes through ordered TypeScript migrations recorded in `schema_migrations`. Keep startup and `npm run db:migrate` on the same migration runner.
+- Use explicit request and response contracts. Do not use database entity types such as `Partial<Transaction>` as write contracts.
 
-- Always use the layered architecture: routes → controllers → services → repositories → database.
-- Never access SQLite directly from routes.
-- Business logic belongs inside services only.
-- Database queries belong inside repositories only.
-- Use Drizzle ORM for all database operations. Avoid raw SQL unless absolutely necessary.
-- Use migrations for all schema changes. Never create tables at runtime.
-- Validate every input boundary with Zod: API requests, CSV rows, config values, AI outputs.
-- Return consistent API response shapes: `{ success: true, data: ... }` or `{ success: false, error: ... }`.
+Validate request bodies, route parameters, query values, settings, and imported rows with Zod. Map validation and storage failures to consistent useful API errors. Do not log credentials, financial rows, or full uploaded statement contents.
 
-### Frontend
+## Frontend
 
-- Use functional components only. No class components.
-- Use React hooks for all state and side effects.
-- Organize with feature folders: pages/, components/, hooks/, services/, types/, utils/.
-- Use React Router for all routing.
-- Use TanStack Table for all data tables.
-- Use React Hook Form + Zod for all forms.
-- Use Recharts for all charts and data visualizations.
-- Use react-markdown for all markdown rendering.
+Use functional React components and hooks. Keep pages, components, hooks, services, and types in the existing `frontend/src` structure. Use React Router for navigation, TanStack Query for API state and invalidation, Recharts for charts, and PapaParse for CSV handling. Preserve the current visual design and keep layouts keyboard-accessible and responsive.
 
-### AI Integration
+Avoid adding dependencies for features that are not used. The current project does not use TanStack Table, React Hook Form, or `react-markdown`. Use route-level lazy loading for page modules when it keeps the initial client bundle smaller without complicating user flows.
 
-- AI is always optional and disabled by default.
-- Use a provider interface pattern: OpenAIProvider, AnthropicProvider, GroqProvider, OllamaProvider.
-- Never tightly couple to any single provider.
-- Never send the entire database to an AI provider. Use date-range-scoped retrieval.
-- Query SQLite → cap results → compact JSON → send to model.
+## Product scope
 
-### Security
+AI analysis is unavailable. Do not imply that selecting a provider or entering configuration enables an AI backend. Keep chat history local and resilient to malformed browser storage.
 
-- Always apply Helmet middleware.
-- Always apply rate limiting on AI and import endpoints.
-- Always apply Content Security Policy headers.
-- Never store API keys in the SQLite database. Use .env.local or secure keychain.
-- Sanitize all CSV values before display or export.
-- Use parameterized queries. Never concatenate user input into SQL.
-- Never commit API keys or secrets.
+Current supported import formats are HDFC, Chase, and the documented generic CSV layout. Do not claim support for other banks without synthetic format fixtures and parser verification. Bulk ledger actions, expanded rule actions, and user confirmation of recurring suggestions remain future work.
 
-## Coding Standards
+## Privacy and data safety
 
-- TypeScript strict mode everywhere. No `any` type.
-- Shared interfaces across frontend and backend where possible.
-- Reusable types over inline type definitions.
-- No placeholder code. No TODOs. No "implement later" comments.
-- No pseudo-code. Every file must compile.
-- No tutorial code, no demo code. Write production-quality code.
-- Choose the cleanest, most maintainable option when multiple approaches exist.
-- Dark theme — minimal, dense, professional, developer aesthetic.
-- No neumorphism, no glassmorphism, no excessive gradients, no flashy animations.
+Keep local API and Docker publication defaults on loopback. Any remote mode must be explicit and documented; it does not add authentication. CORS is not authentication. Do not store provider keys in the finance SQLite database or return secret values through generic settings APIs. Keep uploads, databases, backups, and environment files out of Git and Docker build context.
 
-## Incremental Delivery
+Never use the user's finance database for tests or demos. Use synthetic fixtures and disposable SQLite paths. Preserve existing data when adding migrations or destructive workflows. Use parameterized SQL and protect CSV exports from formula execution.
 
-For each response:
+## Verification
 
-1. Explain what will be generated.
-2. Generate all files completely.
-3. Show directory changes.
-4. Ensure imports are correct.
-5. Ensure code compiles.
-6. Wait for approval before continuing.
+Run checks appropriate to each change from the repository root:
 
-Never skip files. Never omit code. Never abbreviate. Never truncate.
-Maintain consistency across every response.
+```powershell
+npm ci
+npm run format:check
+npm run lint
+npm run build
+npm test
+npm run test:e2e
+```
+
+Backend tests use Vitest and Supertest. The browser suite uses an isolated database and synthetic data. The Docker Compose syntax check is `docker compose config --quiet`; live image and persistence checks require a running Docker Engine.
+
+Report what changed and which checks passed. State any environment mismatch, unavailable infrastructure, or unverified behavior instead of calling it complete. Do not wait for further approval when the user has already requested the implementation and no required decision is missing.

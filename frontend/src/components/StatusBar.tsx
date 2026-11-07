@@ -16,7 +16,11 @@ function StatusBar() {
       <div className="flex items-center gap-2">
         <div
           className={`h-2 w-2 rounded-full ${
-            isConnected ? 'bg-green-500' : health?.database === 'error' ? 'bg-red-500' : 'bg-yellow-500'
+            isConnected
+              ? 'bg-green-500'
+              : health?.database === 'error'
+                ? 'bg-red-500'
+                : 'bg-yellow-500'
           }`}
         />
         <span className="text-xs text-text-muted">

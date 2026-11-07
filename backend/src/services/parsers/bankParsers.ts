@@ -1,32 +1,72 @@
-import type { BankParser, ParsedRow, ParseResult } from './types';
+﻿import type { BankParser, ParsedRow, ParseResult } from './types';
 
-function parseDate(raw: string): string {
+type DateStyle = 'dmy' | 'mdy' | 'generic';
+
+function parseDate(raw: string, style: DateStyle): string {
   const cleaned = raw.trim();
-  const ddmmyyyy = /^(\d{1,2})[\/\-.](\d{1,2})[\/\-.](\d{4})$/.exec(cleaned);
-  if (ddmmyyyy) {
-    const [, d, m, y] = ddmmyyyy;
-    return `${y}-${(m ?? '').padStart(2, '0')}-${(d ?? '').padStart(2, '0')}`;
+  const ymd = /^(\d{4})[-/.](\d{1,2})[-/.](\d{1,2})$/.exec(cleaned);
+  if (ymd) return `${ymd[1]}-${(ymd[2] ?? '').padStart(2, '0')}-${(ymd[3] ?? '').padStart(2, '0')}`;
+
+  const parts = /^(\d{1,2})[-/.](\d{1,2})[-/.](\d{4})$/.exec(cleaned);
+  if (!parts) return cleaned;
+  const first = Number(parts[1]);
+  const second = Number(parts[2]);
+  let day: number;
+  let month: number;
+  if (style === 'dmy') {
+    day = first;
+    month = second;
+  } else if (style === 'mdy') {
+    month = first;
+    day = second;
+  } else if (first > 12 && second <= 12) {
+    day = first;
+    month = second;
+  } else if (second > 12 && first <= 12) {
+    month = first;
+    day = second;
+  } else {
+    return cleaned;
   }
-  const yyyymmdd = /^(\d{4})[\/\-.](\d{1,2})[\/\-.](\d{1,2})$/.exec(cleaned);
-  if (yyyymmdd) {
-    const [, y, m, d] = yyyymmdd;
-    return `${y}-${(m ?? '').padStart(2, '0')}-${(d ?? '').padStart(2, '0')}`;
-  }
-  return cleaned;
+  return `${parts[3]}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
 }
 
-function parseAmount(raw: string): { amount: number; type: 'income' | 'expense' } {
-  const cleaned = raw.replace(/[₹$€£,\s]/g, '').trim();
-  const num = parseFloat(cleaned);
-  if (isNaN(num)) return { amount: 0, type: 'expense' };
-  return { amount: Math.abs(num), type: num >= 0 ? 'income' : 'expense' };
+function parseAmount(raw: string): { amount: number; type: 'income' | 'expense'; valid: boolean } {
+  let cleaned = raw.replace(/\p{Sc}/gu, '').replace(/\s/g, '');
+  let parenthesized = false;
+  if (cleaned.startsWith('(') && cleaned.endsWith(')')) {
+    parenthesized = true;
+    cleaned = cleaned.slice(1, -1);
+  }
+  const numeric =
+    /^(?:[+-])?(?:(?:\d{1,3}(?:,\d{3})+|\d{1,2}(?:,\d{2})*,\d{3}|\d+)(?:\.\d{1,2})?|\.\d{1,2})$/;
+  if (!numeric.test(cleaned)) return { amount: 0, type: 'expense', valid: false };
+  const value = Number(cleaned.replace(/,/g, '')) * (parenthesized ? -1 : 1);
+  if (!Number.isFinite(value)) return { amount: 0, type: 'expense', valid: false };
+  return { amount: Math.abs(value), type: value < 0 ? 'expense' : 'income', valid: true };
+}
+
+function valueFrom(row: Record<string, string>, ...names: string[]): string {
+  const values = new Map(
+    Object.entries(row).map(([key, value]) => [key.toLowerCase().trim(), value]),
+  );
+  for (const name of names) {
+    const value = values.get(name.toLowerCase());
+    if (value !== undefined) return value;
+  }
+  return '';
+}
+
+function parseColumnAmount(raw: string, type: 'income' | 'expense') {
+  const parsed = parseAmount(raw);
+  return { ...parsed, type };
 }
 
 function findColumn(headers: string[], candidates: string[]): string | null {
   const lower = headers.map((h) => h.toLowerCase().trim());
-  for (const c of candidates) {
-    const idx = lower.indexOf(c.toLowerCase());
-    if (idx >= 0) return headers[idx] ?? null;
+  for (const candidate of candidates) {
+    const index = lower.indexOf(candidate.toLowerCase());
+    if (index >= 0) return headers[index] ?? null;
   }
   return null;
 }
@@ -35,34 +75,44 @@ export class HDFCParser implements BankParser {
   name = 'HDFC';
 
   detect(headers: string[]): boolean {
-    const h = headers.map((x) => x.toLowerCase());
-    return h.includes('date') && h.includes('narration') && (h.includes('debit') || h.includes('credit'));
+    const normalized = headers.map((header) => header.toLowerCase());
+    return (
+      normalized.includes('date') &&
+      normalized.includes('narration') &&
+      (normalized.includes('debit') || normalized.includes('credit'))
+    );
   }
 
   parse(rows: Record<string, string>[]): ParseResult {
     const result: ParsedRow[] = [];
     const errors: ParseResult['errors'] = [];
-    for (let i = 0; i < rows.length; i++) {
-      const row = rows[i] ?? {};
-      const dateStr = row['Date'] ?? row['date'] ?? '';
-      const desc = row['Narration'] ?? row['narration'] ?? '';
-      const debit = row['Debit'] ?? row['debit'] ?? '0';
-      const credit = row['Credit'] ?? row['credit'] ?? '0';
-
-      if (!dateStr || !desc) {
-        errors.push({ row: i + 1, message: 'Missing date or narration' });
+    for (let index = 0; index < rows.length; index++) {
+      const row = rows[index] ?? {};
+      const date = valueFrom(row, 'date');
+      const description = valueFrom(row, 'narration');
+      const debitRaw = valueFrom(row, 'debit') || '0';
+      const creditRaw = valueFrom(row, 'credit') || '0';
+      if (!date || !description.trim()) {
+        errors.push({ row: index + 1, message: 'Missing date or narration' });
         continue;
       }
-      const date = parseDate(dateStr);
-      const debitAmt = parseFloat(debit);
-      const creditAmt = parseFloat(credit);
-      const isDebit = !isNaN(debitAmt) && debitAmt > 0;
-
+      const debit = parseColumnAmount(debitRaw, 'expense');
+      const credit = parseColumnAmount(creditRaw, 'income');
+      if (!debit.valid || !credit.valid || (debit.amount > 0 && credit.amount > 0)) {
+        errors.push({ row: index + 1, message: 'Invalid or ambiguous debit/credit amount' });
+        continue;
+      }
+      const amount = debit.amount > 0 ? debit.amount : credit.amount;
+      if (amount <= 0) {
+        errors.push({ row: index + 1, message: 'Could not determine transaction amount' });
+        continue;
+      }
       result.push({
-        date,
-        description: desc.trim(),
-        amount: isDebit ? debitAmt : creditAmt,
-        type: isDebit ? 'expense' : 'income',
+        sourceRow: index + 1,
+        date: parseDate(date, 'dmy'),
+        description: description.trim(),
+        amount,
+        type: debit.amount > 0 ? 'expense' : 'income',
         raw: row,
       });
     }
@@ -74,35 +124,35 @@ export class ChaseParser implements BankParser {
   name = 'Chase';
 
   detect(headers: string[]): boolean {
-    const h = headers.map((x) => x.toLowerCase());
-    return h.includes('posting date') || (h.includes('transaction date') && h.includes('description'));
+    const normalized = headers.map((header) => header.toLowerCase());
+    return (
+      normalized.includes('posting date') ||
+      (normalized.includes('transaction date') && normalized.includes('description'))
+    );
   }
 
   parse(rows: Record<string, string>[]): ParseResult {
     const result: ParsedRow[] = [];
     const errors: ParseResult['errors'] = [];
-    for (let i = 0; i < rows.length; i++) {
-      const row = rows[i] ?? {};
-      const dateStr = row['Posting Date'] ?? row['Transaction Date'] ?? '';
-      const desc = row['Description'] ?? '';
-      const amountStr = row['Amount'] ?? '0';
-
-      if (!dateStr || !desc) {
-        errors.push({ row: i + 1, message: 'Missing date or description' });
+    for (let index = 0; index < rows.length; index++) {
+      const row = rows[index] ?? {};
+      const date = valueFrom(row, 'posting date', 'transaction date');
+      const description = valueFrom(row, 'description');
+      const amount = parseAmount(valueFrom(row, 'amount'));
+      if (!date || !description.trim()) {
+        errors.push({ row: index + 1, message: 'Missing date or description' });
         continue;
       }
-
-      const { amount, type } = parseAmount(amountStr);
-      if (amount === 0) {
-        errors.push({ row: i + 1, message: 'Invalid amount' });
+      if (!amount.valid || amount.amount <= 0) {
+        errors.push({ row: index + 1, message: 'Invalid amount' });
         continue;
       }
-
       result.push({
-        date: parseDate(dateStr),
-        description: desc.trim(),
-        amount,
-        type,
+        sourceRow: index + 1,
+        date: parseDate(date, 'mdy'),
+        description: description.trim(),
+        amount: amount.amount,
+        type: amount.type,
         raw: row,
       });
     }
@@ -120,56 +170,86 @@ export class GenericParser implements BankParser {
   parse(rows: Record<string, string>[]): ParseResult {
     const result: ParsedRow[] = [];
     const errors: ParseResult['errors'] = [];
-    const dateCol = findColumn(
-      Object.keys(rows[0] ?? {}),
-      ['date', 'transaction date', 'posting date', 'value date'],
-    );
-    const descCol = findColumn(
-      Object.keys(rows[0] ?? {}),
-      ['description', 'narration', 'narrative', 'memo', 'particulars'],
-    );
-    const amountCol = findColumn(Object.keys(rows[0] ?? {}), ['amount', 'value', 'transaction amount']);
-    const debitCol = findColumn(Object.keys(rows[0] ?? {}), ['debit', 'withdrawal', 'dr']);
-    const creditCol = findColumn(Object.keys(rows[0] ?? {}), ['credit', 'deposit', 'cr']);
-    const merchantCol = findColumn(Object.keys(rows[0] ?? {}), ['merchant', 'payee', 'name']);
+    const headers = Object.keys(rows[0] ?? {});
+    const dateColumn = findColumn(headers, [
+      'date',
+      'transaction date',
+      'posting date',
+      'value date',
+    ]);
+    const descriptionColumn = findColumn(headers, [
+      'description',
+      'narration',
+      'narrative',
+      'memo',
+      'particulars',
+    ]);
+    const amountColumn = findColumn(headers, ['amount', 'value', 'transaction amount']);
+    const debitColumn = findColumn(headers, ['debit', 'withdrawal', 'dr']);
+    const creditColumn = findColumn(headers, ['credit', 'deposit', 'cr']);
+    const merchantColumn = findColumn(headers, ['merchant', 'payee', 'name']);
+    const externalIdColumn = findColumn(headers, [
+      'external id',
+      'transaction id',
+      'reference',
+      'reference number',
+    ]);
 
-    for (let i = 0; i < rows.length; i++) {
-      const row = rows[i] ?? {};
-      const dateStr = dateCol ? (row[dateCol] ?? '') : '';
-      const desc = descCol ? (row[descCol] ?? '') : '';
-
-      if (!dateStr || !desc) {
-        errors.push({ row: i + 1, message: 'Missing date or description' });
+    for (let index = 0; index < rows.length; index++) {
+      const row = rows[index] ?? {};
+      const date = dateColumn ? valueFrom(row, dateColumn) : '';
+      const description = descriptionColumn ? valueFrom(row, descriptionColumn) : '';
+      if (!date || !description.trim()) {
+        errors.push({ row: index + 1, message: 'Missing date or description' });
         continue;
       }
 
       let amount = 0;
       let type: 'income' | 'expense' = 'expense';
-
-      if (amountCol && row[amountCol]) {
-        const parsed = parseAmount(row[amountCol] ?? '');
+      if (amountColumn && valueFrom(row, amountColumn)) {
+        const parsed = parseAmount(valueFrom(row, amountColumn));
+        if (!parsed.valid || parsed.amount <= 0) {
+          errors.push({ row: index + 1, message: 'Invalid amount' });
+          continue;
+        }
         amount = parsed.amount;
         type = parsed.type;
-      } else if (debitCol && parseFloat(row[debitCol] ?? '0') > 0) {
-        amount = parseFloat(row[debitCol] ?? '0');
-        type = 'expense';
-      } else if (creditCol && parseFloat(row[creditCol] ?? '0') > 0) {
-        amount = parseFloat(row[creditCol] ?? '0');
-        type = 'income';
+      } else if (debitColumn || creditColumn) {
+        const debitRaw = debitColumn ? valueFrom(row, debitColumn).trim() : '';
+        const creditRaw = creditColumn ? valueFrom(row, creditColumn).trim() : '';
+        const debit = debitRaw ? parseColumnAmount(debitRaw, 'expense') : null;
+        const credit = creditRaw ? parseColumnAmount(creditRaw, 'income') : null;
+        if (
+          (debit && !debit.valid) ||
+          (credit && !credit.valid) ||
+          (debit?.amount && credit?.amount)
+        ) {
+          errors.push({ row: index + 1, message: 'Invalid or ambiguous debit/credit amount' });
+          continue;
+        }
+        if (debit?.amount) {
+          amount = debit.amount;
+          type = 'expense';
+        } else if (credit?.amount) {
+          amount = credit.amount;
+          type = 'income';
+        }
       }
-
-      if (amount === 0) {
-        errors.push({ row: i + 1, message: 'Could not determine amount' });
+      if (amount <= 0) {
+        errors.push({ row: index + 1, message: 'Could not determine amount' });
         continue;
       }
 
-      const merchant = merchantCol ? (row[merchantCol] ?? undefined) : undefined;
+      const merchant = merchantColumn ? valueFrom(row, merchantColumn) : '';
+      const externalId = externalIdColumn ? valueFrom(row, externalIdColumn) : '';
       result.push({
-        date: parseDate(dateStr),
-        description: desc.trim(),
+        sourceRow: index + 1,
+        date: parseDate(date, 'generic'),
+        description: description.trim(),
         amount,
         type,
         ...(merchant ? { merchant } : {}),
+        ...(externalId ? { reference: externalId } : {}),
         raw: row,
       });
     }
@@ -183,10 +263,7 @@ export const BUILTIN_PARSERS: BankParser[] = [
   new GenericParser(),
 ];
 
-export function detectParser(
-  headers: string[],
-  sampleRows: Record<string, string>[],
-): BankParser {
+export function detectParser(headers: string[], sampleRows: Record<string, string>[]): BankParser {
   for (const parser of BUILTIN_PARSERS) {
     if (parser.name === 'Generic') continue;
     if (parser.detect(headers, sampleRows)) return parser;

@@ -30,6 +30,7 @@ export interface Transaction {
   external_id: string | null;
   category_name?: string;
   account_name?: string;
+  account_currency?: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -57,23 +58,35 @@ export interface Account {
 }
 
 export interface AnalyticsSummary {
-  totalIncome: number;
-  totalExpenses: number;
-  netSavings: number;
-  savingsRate: number;
-  burnRate: number;
-  netWorth: number;
+  totalIncome: number | null;
+  totalExpenses: number | null;
+  netSavings: number | null;
+  savingsRate: number | null;
+  burnRate: number | null;
+  netWorth: number | null;
+  netWorthByCurrency: { currency: string; amount: number }[];
+  currencyTotals: {
+    currency: string;
+    totalIncome: number;
+    totalExpenses: number;
+    netSavings: number;
+    savingsRate: number;
+    burnRate: number;
+  }[];
 }
 
 export interface MonthlyData {
   month: string;
+  currency: string;
   income: number;
   expense: number;
+  net: number;
 }
 
 export interface CategoryTotal {
   categoryId: number | null;
   categoryName: string | null;
+  currency: string;
   total: number;
 }
 

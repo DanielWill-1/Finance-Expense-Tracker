@@ -1,109 +1,62 @@
 # GhostLedger Architecture
 
-## Overview
+## Runtime
 
-GhostLedger is a local-first personal finance application built as a monorepo with a Vite + React frontend and an Express + TypeScript backend. SQLite serves as the database with Drizzle ORM for type-safe schema management and migrations.
+GhostLedger is an npm-workspaces monorepo:
 
-## Repository Structure
+- frontend is React, TypeScript, and Vite.
+- backend is Express and TypeScript.
+- better-sqlite3 provides the local SQLite connection.
+- Zod validates request bodies, route identifiers, query parameters, settings, and import rows.
 
-```
-ghostledger/
-├── frontend/          # React + Vite + TypeScript + TailwindCSS
-│   ├── src/
-│   │   ├── pages/     # Route-level page components
-│   │   ├── components/ # Reusable UI components
-│   │   ├── hooks/     # Custom React hooks
-│   │   ├── services/  # API client wrappers
-│   │   ├── types/     # Shared TypeScript interfaces
-│   │   └── utils/     # Utility functions
-├── backend/           # Express + TypeScript API
-│   ├── src/
-│   │   ├── routes/    # Thin route declarations
-│   │   ├── controllers/ # Request handling and response formatting
-│   │   ├── services/  # Business logic layer
-│   │   ├── repositories/ # Database access (Drizzle ORM)
-│   │   ├── database/  # Schemas, migrations, seeds
-│   │   ├── middleware/ # Validation, error handling, security
-│   │   ├── config/    # Environment and application configuration
-│   │   └── types/     # Shared backend types
-├── docs/              # Architecture documentation
-├── docker/            # Dockerfile and compose configuration
-└── .github/           # CI workflows
+The development frontend runs at 127.0.0.1:5173 and proxies API requests to 127.0.0.1:3001. Production Express serves the built frontend and API from the same origin. Unknown API paths retain JSON 404 responses; application routes fall back to the frontend entry point.
+
+## Backend boundaries
+
+```text
+routes -> controllers -> services -> repositories -> SQLite
 ```
 
-## Backend Architecture
+- Routes bind endpoints, upload constraints, and small middleware such as rate limits.
+- Controllers validate incoming data and shape responses.
+- Services own financial and import workflows.
+- Repositories own parameterized SQLite queries and writes.
+- Database migrations are the authoritative schema history.
 
-The backend follows a layered architecture pattern:
+The query layer uses prepared better-sqlite3 statements. Drizzle is not used for schema management or queries. Migrations are ordered TypeScript functions recorded in schema_migrations; they run on startup and through the explicit migration command.
 
-```
-routes → controllers → services → repositories → database
-```
+## Database and lifecycle
 
-### Layers
+The default development database is backend/data/ghostledger.db. DATABASE_URL overrides that path; relative paths are resolved from the backend directory. WAL mode is enabled and foreign-key checks are on.
 
-- **Routes**: Map HTTP methods and paths to controllers. Thin and declarative.
-- **Controllers**: Parse requests, set status codes, orchestrate services.
-- **Services**: Business logic — categorization, duplicate checks, import workflows.
-- **Repositories**: Focused database access — hide SQL/ORM from services.
-- **Database**: Drizzle schemas, migrations, indexes, constraints.
-- **Middleware**: Validation, error handling, rate limiting, security headers.
+Current migrations create the initial schema, change account deletion from cascading to restricted while preserving transactions, and remove legacy secret-shaped settings. Restore accepts only a database with the current migration version and exact current table columns.
 
-### API Response Format
+The server closes SQLite on SIGINT and SIGTERM. Tests close both the application connection and their fixture handle, then remove disposable database and journal files.
 
-All endpoints return a consistent shape:
+## Financial semantics
 
-Success:
-```json
-{ "success": true, "data": { ... } }
-```
+- Account balances are current snapshots entered by the user; transactions do not change them.
+- Net Worth sums active account balances by currency. Negative balances represent liabilities. A scalar total is available only when active balances use one currency.
+- Transaction currency comes from its account, or defaults to INR when no account is assigned. Account currency cannot be changed once it has transaction history.
+- Amounts allow two decimal places and aggregate through integer cents.
+- Cash-flow summaries use all time unless a date range is supplied. Burn rate uses the six previous complete calendar months.
+- Categories, spending trends, merchant totals, expense ranking, and charts keep currencies separate.
+- Recurring detection is a monthly-expense heuristic. Upcoming dates are forecasts, not verified bills.
 
-Error:
-```json
-{ "success": false, "error": "description" }
-```
+## Privacy boundaries
 
-## Frontend Architecture
+The backend binds to loopback by default. Host and origin checks protect local mutation requests; CORS is configured for development and is not authentication. Remote mode requires ALLOW_REMOTE=true and is documented as an explicit operator choice.
 
-- **Route-level pages** in `pages/` directory
-- **Reusable components** in `components/` directory
-- **Custom hooks** for shared state and data fetching logic
-- **API services** for typed HTTP client wrappers
-- **Shared types** mirroring backend response shapes
+Generic settings are allowlisted and do not accept API keys. Legacy secret-shaped setting keys are deleted by migration without logging values. The app does not make external font requests. CSV uploads are memory-backed, while restore files use a restricted temporary directory and are removed after use. Recovery backups are kept beside the database.
 
-### Key Libraries
+The Docker image excludes environment files, database files, backups, and development artifacts. It runs as a non-root user and serves the frontend/API together.
 
-- **React Router** for client-side routing
-- **React Query (TanStack Query)** for server state management and caching
-- **Axios** for HTTP requests with interceptors for error handling
-- **TailwindCSS** for utility-first styling with a custom dark theme
+## Frontend data flow
 
-## Database
+TanStack Query owns API state. Mutations invalidate the ledger, analytics, recurring, largest-expense, and sidebar queries that can change. Route pages are lazy-loaded so the dashboard charts do not inflate the initial JavaScript bundle. Chat history is stored in browser localStorage and safely falls back to the default notice if stored data is invalid.
 
-SQLite with Drizzle ORM provides:
+Dialogs use modal semantics, Escape handling, focus trapping, and focus restoration. The responsive sidebar narrows at mobile widths; ledger tables scroll horizontally.
 
-- Type-safe schema definitions
-- Automated migration generation
-- Direct filesystem persistence — no server process
-- WAL journal mode for concurrent reads
+## Deferred work
 
-## Design System
-
-- **Dark theme** — minimal, dense, professional aesthetic
-- **Color tokens** defined in Tailwind config for consistency
-- **Persistent left sidebar** with route navigation
-- **Status bar** showing API and database health
-
-## Security
-
-- Helmet for HTTP security headers
-- CORS configured for specific origins
-- Zod validation on all input boundaries
-- Parameterized queries via Drizzle ORM
-- CSP headers
-- No API keys in source or database
-
-## Development
-
-- `npm run dev` from root starts both frontend and backend concurrently
-- Vite dev server proxies `/api` requests to the Express backend
-- Backend uses `tsx` for watch-mode TypeScript execution
+AI providers, more bank-specific parsers, bulk ledger actions, advanced rule conditions/actions, and user review of recurring suggestions are not implemented. See README.md for the supported formats, installation, data ownership workflow, and verification commands.

@@ -23,9 +23,11 @@ function formatMessage(level: LogLevel, message: string, meta?: Record<string, u
 
 export const logger = {
   debug(message: string, meta?: Record<string, unknown>): void {
+    // eslint-disable-next-line no-console -- This centralized logger writes the selected debug level.
     if (shouldLog('debug')) console.debug(formatMessage('debug', message, meta));
   },
   info(message: string, meta?: Record<string, unknown>): void {
+    // eslint-disable-next-line no-console -- This centralized logger writes the selected info level.
     if (shouldLog('info')) console.info(formatMessage('info', message, meta));
   },
   warn(message: string, meta?: Record<string, unknown>): void {

@@ -12,8 +12,8 @@ beforeAll(async () => {
   app = mod.default;
 });
 
-afterAll(() => {
-  teardownTestDb('accounts', testDb);
+afterAll(async () => {
+  await teardownTestDb('accounts', testDb);
 });
 
 describe('Account CRUD', () => {
@@ -57,5 +57,42 @@ describe('Account CRUD', () => {
   it('GET /api/accounts/:id returns 404 after delete', async () => {
     const res = await request(app).get(`/api/accounts/${accountId}`);
     expect(res.status).toBe(404);
+  });
+
+  it('rejects deleting an account while preserving its linked transaction', async () => {
+    const account = await request(app)
+      .post('/api/accounts')
+      .send({ name: 'History Account', balance: 500 });
+    const transaction = await request(app).post('/api/transactions').send({
+      amount: 25,
+      date: '2026-01-02',
+      description: 'History remains',
+      accountId: account.body.data.id,
+      type: 'expense',
+    });
+    const deleted = await request(app).delete(`/api/accounts/${account.body.data.id}`);
+    const stillThere = await request(app).get(`/api/transactions/${transaction.body.data.id}`);
+    expect(deleted.status).toBe(409);
+    expect(stillThere.status).toBe(200);
+  });
+
+  it('prevents currency changes that would relabel historical transactions', async () => {
+    const account = await request(app)
+      .post('/api/accounts')
+      .send({ name: 'Currency History', balance: 500, currency: 'USD' });
+    await request(app).post('/api/transactions').send({
+      amount: 25,
+      date: '2026-01-03',
+      description: 'USD history',
+      accountId: account.body.data.id,
+      type: 'expense',
+    });
+
+    const changed = await request(app)
+      .put(`/api/accounts/${account.body.data.id}`)
+      .send({ currency: 'INR' });
+    const unchanged = await request(app).get(`/api/accounts/${account.body.data.id}`);
+    expect(changed.status).toBe(409);
+    expect(unchanged.body.data.currency).toBe('USD');
   });
 });

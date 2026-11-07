@@ -1,0 +1,7 @@
+prompt.md
+master_prompt.md
+**/dist/**
+**/build/**
+**/coverage/**
+**/playwright-report/**
+**/test-results/**

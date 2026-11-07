@@ -3,8 +3,11 @@ import { fetchImportHistory, undoImport } from '../services/endpoints';
 import { Card, CardBody } from './ui/Card';
 import { LoadingSpinner, EmptyState } from './ui/States';
 import { Undo2 } from 'lucide-react';
+import { invalidateFinanceQueries } from '../services/queryInvalidation';
+import { useState } from 'react';
 
 export function ImportHistory() {
+  const [error, setError] = useState('');
   const queryClient = useQueryClient();
   const { data, isLoading } = useQuery({
     queryKey: ['import-history'],
@@ -15,8 +18,9 @@ export function ImportHistory() {
     mutationFn: (batchId: number) => undoImport(batchId),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['import-history'] });
-      queryClient.invalidateQueries({ queryKey: ['transactions'] });
+      invalidateFinanceQueries(queryClient);
     },
+    onError: (err: Error) => setError(err.message || 'Could not undo this import'),
   });
 
   const batches = data?.data ?? [];
@@ -25,6 +29,11 @@ export function ImportHistory() {
     <Card>
       <CardBody>
         <h3 className="text-base font-medium text-on-surface mb-4">Import History</h3>
+        {error && (
+          <p role="alert" className="mb-3 text-sm text-error">
+            {error}
+          </p>
+        )}
         {isLoading ? (
           <LoadingSpinner />
         ) : batches.length === 0 ? (
@@ -48,13 +57,19 @@ export function ImportHistory() {
                     <td className="py-2 px-3 text-on-surface-variant">
                       {new Date(b.imported_at).toLocaleDateString()}
                     </td>
-                    <td className="py-2 px-3">{b.imported_rows} / {b.total_rows}</td>
                     <td className="py-2 px-3">
-                      <span className={`px-1.5 py-0.5 rounded text-xs ${
-                        b.status === 'completed' ? 'bg-primary-fixed-dim/10 text-primary-fixed-dim border border-primary-fixed-dim/30' :
-                        b.status === 'rolled_back' ? 'bg-error-container/30 text-error border border-error/30' :
-                        'bg-surface-container-high text-on-surface-variant border border-outline-variant'
-                      }`}>
+                      {b.imported_rows} / {b.total_rows}
+                    </td>
+                    <td className="py-2 px-3">
+                      <span
+                        className={`px-1.5 py-0.5 rounded text-xs ${
+                          b.status === 'completed'
+                            ? 'bg-primary-fixed-dim/10 text-primary-fixed-dim border border-primary-fixed-dim/30'
+                            : b.status === 'rolled_back'
+                              ? 'bg-error-container/30 text-error border border-error/30'
+                              : 'bg-surface-container-high text-on-surface-variant border border-outline-variant'
+                        }`}
+                      >
                         {b.status}
                       </span>
                     </td>
@@ -62,6 +77,7 @@ export function ImportHistory() {
                       {b.status === 'completed' && (
                         <button
                           onClick={() => undoMutation.mutate(b.id)}
+                          aria-label={`Undo import ${b.filename}`}
                           disabled={undoMutation.isPending}
                           className="text-on-surface-variant hover:text-error transition-colors disabled:opacity-50"
                           title="Undo import"

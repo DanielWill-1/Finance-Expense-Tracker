@@ -19,11 +19,7 @@ const DEFAULT_MESSAGES: Message[] = [
   {
     id: 'intro',
     role: 'assistant',
-    content: `Hi! I'm **Ghost AI**, your personal finance assistant.
-
-I can help you analyze spending, identify trends, and understand your financial data. All analysis runs locally on your machine — your data never leaves this device.
-
-**How can I assist you today?**`,
+    content: `This is GhostLedger's local chat history. The AI backend is unavailable in this release, so no financial analysis is performed here. Use the Dashboard and Ledger to review your actual data.`,
     timestamp: '',
   },
 ];
@@ -32,8 +28,24 @@ export function ChatProvider({ children }: { children: ReactNode }) {
   const [messages, setMessages] = useState<Message[]>(() => {
     try {
       const saved = localStorage.getItem('ghostledger_chat');
-      if (saved) return JSON.parse(saved);
-    } catch {}
+      if (saved) {
+        const parsed: unknown = JSON.parse(saved);
+        if (
+          Array.isArray(parsed) &&
+          parsed.every(
+            (message) =>
+              message &&
+              typeof message.id === 'string' &&
+              (message.role === 'user' || message.role === 'assistant') &&
+              typeof message.content === 'string' &&
+              typeof message.timestamp === 'string',
+          )
+        )
+          return parsed as Message[];
+      }
+    } catch {
+      // Keep the default conversation when stored history is malformed or unavailable.
+    }
     return DEFAULT_MESSAGES;
   });
 
@@ -42,7 +54,9 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       const next = [...prev, msg];
       try {
         localStorage.setItem('ghostledger_chat', JSON.stringify(next));
-      } catch {}
+      } catch {
+        // The in-memory conversation still works when browser storage is unavailable.
+      }
       return next;
     });
   }
@@ -51,7 +65,9 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     setMessages(DEFAULT_MESSAGES);
     try {
       localStorage.removeItem('ghostledger_chat');
-    } catch {}
+    } catch {
+      // Clearing the in-memory conversation remains available when browser storage is unavailable.
+    }
   }
 
   return (

@@ -21,10 +21,17 @@ import {
   BarChart,
   Bar,
 } from 'recharts';
-import { ArrowDownRight, ArrowUpRight, TrendingDown, TrendingUp, Flame, Calendar } from 'lucide-react';
+import {
+  ArrowDownRight,
+  ArrowUpRight,
+  TrendingDown,
+  TrendingUp,
+  Flame,
+  Calendar,
+} from 'lucide-react';
 export default function Dashboard() {
   return (
-    <div className="p-margin-desktop space-y-6">
+    <div className="p-margin-mobile md:p-margin-desktop space-y-6">
       <SummaryCards />
       <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
         <CashFlowChart />
@@ -39,12 +46,17 @@ export default function Dashboard() {
   );
 }
 
-function formatCurrency(n: number) {
-  return new Intl.NumberFormat('en-IN', {
-    style: 'currency',
-    currency: 'INR',
-    maximumFractionDigits: 0,
-  }).format(n);
+function formatCurrency(n: number, currency = 'INR') {
+  if (!Number.isFinite(n)) n = 0;
+  try {
+    return new Intl.NumberFormat('en-IN', {
+      style: 'currency',
+      currency,
+      maximumFractionDigits: 2,
+    }).format(n);
+  } catch {
+    return `${currency} ${n.toFixed(2)}`;
+  }
 }
 
 function SummaryCards() {
@@ -59,27 +71,59 @@ function SummaryCards() {
   }
 
   const s = data.data;
+  const currencies = s.currencyTotals ?? [];
+  const currency = currencies.length === 1 ? currencies[0]!.currency : 'INR';
+  const showByCurrency = (key: 'totalIncome' | 'totalExpenses' | 'netSavings' | 'burnRate') =>
+    currencies.length > 1
+      ? currencies
+          .map((entry) => `${entry.currency} ${formatCurrency(entry[key], entry.currency)}`)
+          .join(' · ')
+      : formatCurrency(Number(s[key] ?? 0), currency);
+  const netWorthLabel =
+    s.netWorth === null
+      ? (s.netWorthByCurrency ?? [])
+          .map((entry) => `${entry.currency} ${formatCurrency(entry.amount, entry.currency)}`)
+          .join(' · ') || formatCurrency(0)
+      : formatCurrency(s.netWorth, s.netWorthByCurrency?.[0]?.currency ?? currency);
+  const netSavings = s.netSavings ?? 0;
+  const savingsRateLabel =
+    currencies.length > 1
+      ? currencies.map((entry) => `${entry.currency} ${entry.savingsRate}%`).join(' · ')
+      : `${s.savingsRate ?? 0}% savings rate`;
 
   return (
-    <div className="grid grid-cols-1 md:grid-cols-3 gap-gutter">
+    <div className="grid grid-cols-1 sm:grid-cols-2 2xl:grid-cols-5 gap-gutter">
       <SummaryCard
         label="Total Income"
-        value={s.totalIncome}
+        value={showByCurrency('totalIncome')}
         icon={ArrowUpRight}
         colorClass="text-primary-fixed-dim"
       />
       <SummaryCard
         label="Total Expenses"
-        value={s.totalExpenses}
+        value={showByCurrency('totalExpenses')}
         icon={ArrowDownRight}
         colorClass="text-error"
       />
       <SummaryCard
         label="Net Savings"
-        value={s.netSavings}
-        icon={s.netSavings >= 0 ? TrendingUp : TrendingDown}
-        colorClass={s.netSavings >= 0 ? 'text-primary-fixed-dim' : 'text-error'}
-        subtitle={`${s.savingsRate}% savings rate`}
+        value={showByCurrency('netSavings')}
+        icon={netSavings >= 0 ? TrendingUp : TrendingDown}
+        colorClass={netSavings >= 0 ? 'text-primary-fixed-dim' : 'text-error'}
+        subtitle={savingsRateLabel}
+      />
+      <SummaryCard
+        label="Net Worth"
+        value={netWorthLabel}
+        icon={(s.netWorth ?? 0) >= 0 ? TrendingUp : TrendingDown}
+        colorClass={(s.netWorth ?? 0) >= 0 ? 'text-primary-fixed-dim' : 'text-error'}
+        subtitle="Current account balances; transactions do not adjust balances"
+      />
+      <SummaryCard
+        label="Monthly Burn · last 6 full months"
+        value={showByCurrency('burnRate')}
+        icon={Flame}
+        colorClass="text-error"
       />
     </div>
   );
@@ -93,7 +137,7 @@ function SummaryCard({
   subtitle,
 }: {
   label: string;
-  value: number;
+  value: number | string;
   icon: React.ComponentType<{ className?: string }>;
   colorClass: string;
   subtitle?: string;
@@ -106,7 +150,7 @@ function SummaryCard({
           <Icon className={`h-5 w-5 ${colorClass}`} />
         </div>
         <p className={`text-2xl font-semibold font-mono ${colorClass} tabular-nums`}>
-          {formatCurrency(value)}
+          {typeof value === 'number' ? formatCurrency(value) : value}
         </p>
         {subtitle && <p className="text-xs text-on-surface-variant mt-1">{subtitle}</p>}
       </CardBody>
@@ -125,39 +169,97 @@ function CashFlowChart() {
     return <ErrorState message="Failed to load cash flow data" onRetry={() => refetch()} />;
   }
 
-  const chartData = data.data.map((d) => ({
-    month: d.month.slice(5),
-    Income: d.income,
-    Expense: d.expense,
-  }));
+  const monthlyRows = (Array.isArray(data.data) ? data.data : []).filter(
+    (row) => row && typeof row.month === 'string',
+  );
+  const currencyRows = [...new Set(monthlyRows.map((row) => row.currency ?? 'INR'))].sort();
+  const chartMaps = new Map<string, Map<string, Record<string, string | number>>>();
+  for (const row of monthlyRows) {
+    const currency = row.currency ?? 'INR';
+    const rowsByMonth =
+      chartMaps.get(currency) ?? new Map<string, Record<string, string | number>>();
+    const chartRow = rowsByMonth.get(row.month) ?? { month: row.month };
+    chartRow[`Income ${currency}`] = Number.isFinite(row.income) ? row.income : 0;
+    chartRow[`Expense ${currency}`] = Number.isFinite(row.expense) ? row.expense : 0;
+    rowsByMonth.set(row.month, chartRow);
+    chartMaps.set(currency, rowsByMonth);
+  }
+  if (currencyRows.length === 0) {
+    return (
+      <Card>
+        <CardBody>
+          <h3 className="text-base font-medium text-on-surface mb-2">Cash Flow (12 months)</h3>
+          <p className="py-8 text-center text-sm text-on-surface-variant">
+            No transaction data yet
+          </p>
+        </CardBody>
+      </Card>
+    );
+  }
 
   return (
-    <Card>
-      <CardBody>
-        <h3 className="text-base font-medium text-on-surface mb-4">Cash Flow (12 months)</h3>
-        <div className="h-64">
-          <ResponsiveContainer width="100%" height="100%">
-            <LineChart data={chartData}>
-              <CartesianGrid stroke="#3a4a43" strokeDasharray="3 3" />
-              <XAxis dataKey="month" stroke="#b9cbc1" tick={{ fontSize: 11, fontFamily: 'JetBrains Mono' }} />
-              <YAxis stroke="#b9cbc1" tick={{ fontSize: 11, fontFamily: 'JetBrains Mono' }} />
-              <Tooltip
-                contentStyle={{
-                  backgroundColor: '#0d1c2d',
-                  border: '1px solid #3a4a43',
-                  borderRadius: '4px',
-                  fontFamily: 'JetBrains Mono',
-                  fontSize: '12px',
-                  color: '#d4e4fa',
-                }}
-              />
-              <Line type="monotone" dataKey="Income" stroke="#00e1ab" strokeWidth={2} dot={false} />
-              <Line type="monotone" dataKey="Expense" stroke="#ffb4ab" strokeWidth={2} dot={false} />
-            </LineChart>
-          </ResponsiveContainer>
-        </div>
-      </CardBody>
-    </Card>
+    <div className={`grid grid-cols-1 gap-6 ${currencyRows.length > 1 ? '2xl:grid-cols-2' : ''}`}>
+      {currencyRows.map((currency) => {
+        const chartData = [...(chartMaps.get(currency)?.values() ?? [])].sort((a, b) =>
+          String(a.month).localeCompare(String(b.month)),
+        );
+        return (
+          <Card key={currency}>
+            <CardBody>
+              <h3 className="text-base font-medium text-on-surface mb-4">
+                Cash Flow · {currency} (12 months)
+              </h3>
+              <div className="h-64">
+                <ResponsiveContainer width="100%" height="100%">
+                  <LineChart data={chartData}>
+                    <CartesianGrid stroke="#3a4a43" strokeDasharray="3 3" />
+                    <XAxis
+                      dataKey="month"
+                      tickFormatter={(month: string) => `${month.slice(5)} '${month.slice(2, 4)}`}
+                      stroke="#b9cbc1"
+                      tick={{ fontSize: 11, fontFamily: 'JetBrains Mono' }}
+                    />
+                    <YAxis
+                      stroke="#b9cbc1"
+                      tick={{ fontSize: 11, fontFamily: 'JetBrains Mono' }}
+                      tickFormatter={(value: number) => formatCurrency(value, currency)}
+                      width={88}
+                    />
+                    <Tooltip
+                      formatter={(value) => formatCurrency(Number(value), currency)}
+                      contentStyle={{
+                        backgroundColor: '#0d1c2d',
+                        border: '1px solid #3a4a43',
+                        borderRadius: '4px',
+                        fontFamily: 'JetBrains Mono',
+                        fontSize: '12px',
+                        color: '#d4e4fa',
+                      }}
+                    />
+                    <Line
+                      type="monotone"
+                      dataKey={`Income ${currency}`}
+                      name="Income"
+                      stroke="#00e1ab"
+                      strokeWidth={2}
+                      dot={false}
+                    />
+                    <Line
+                      type="monotone"
+                      dataKey={`Expense ${currency}`}
+                      name="Expense"
+                      stroke="#ffb4ab"
+                      strokeWidth={2}
+                      dot={false}
+                    />
+                  </LineChart>
+                </ResponsiveContainer>
+              </div>
+            </CardBody>
+          </Card>
+        );
+      })}
+    </div>
   );
 }
 
@@ -172,47 +274,77 @@ function CategoryChart() {
     return <ErrorState message="Failed to load categories" onRetry={() => refetch()} />;
   }
 
-  const chartData = (data.data ?? [])
-    .filter((c) => c && c.categoryName)
-    .map((c) => ({
-      name: c.categoryName!,
-      amount: Math.abs(c.total ?? 0),
-    }))
-    .sort((a, b) => b.amount - a.amount)
-    .slice(0, 6);
+  const categoriesByCurrency = new Map<string, Array<{ name: string; amount: number }>>();
+  for (const category of Array.isArray(data.data) ? data.data : []) {
+    const currency = category.currency ?? 'INR';
+    const categories = categoriesByCurrency.get(currency) ?? [];
+    categories.push({
+      name: category.categoryName ?? 'Uncategorized',
+      amount: Number.isFinite(category.total) ? Math.abs(category.total) : 0,
+    });
+    categoriesByCurrency.set(currency, categories);
+  }
+  const currencies = [...categoriesByCurrency.keys()].sort();
+  if (currencies.length === 0) {
+    return (
+      <Card>
+        <CardBody>
+          <h3 className="text-base font-medium text-on-surface mb-2">Top Expense Categories</h3>
+          <p className="py-8 text-center text-sm text-on-surface-variant">No expense data yet</p>
+        </CardBody>
+      </Card>
+    );
+  }
 
   return (
-    <Card>
-      <CardBody>
-        <h3 className="text-base font-medium text-on-surface mb-4">Top Expense Categories</h3>
-        <div className="h-64">
-          <ResponsiveContainer width="100%" height="100%">
-            <BarChart data={chartData} layout="vertical">
-              <CartesianGrid stroke="#3a4a43" strokeDasharray="3 3" />
-              <XAxis type="number" stroke="#b9cbc1" tick={{ fontSize: 10, fontFamily: 'JetBrains Mono' }} />
-              <YAxis
-                type="category"
-                dataKey="name"
-                stroke="#b9cbc1"
-                tick={{ fontSize: 11, fontFamily: 'JetBrains Mono' }}
-                width={100}
-              />
-              <Tooltip
-                contentStyle={{
-                  backgroundColor: '#0d1c2d',
-                  border: '1px solid #3a4a43',
-                  borderRadius: '4px',
-                  fontFamily: 'JetBrains Mono',
-                  fontSize: '12px',
-                  color: '#d4e4fa',
-                }}
-              />
-              <Bar dataKey="amount" fill="#00e1ab" radius={[0, 2, 2, 0]} />
-            </BarChart>
-          </ResponsiveContainer>
-        </div>
-      </CardBody>
-    </Card>
+    <div className={`grid grid-cols-1 gap-6 ${currencies.length > 1 ? '2xl:grid-cols-2' : ''}`}>
+      {currencies.map((currency) => {
+        const chartData = [...(categoriesByCurrency.get(currency) ?? [])]
+          .sort((a, b) => b.amount - a.amount)
+          .slice(0, 6);
+        return (
+          <Card key={currency}>
+            <CardBody>
+              <h3 className="text-base font-medium text-on-surface mb-4">
+                Top Expense Categories · {currency}
+              </h3>
+              <div className="h-64">
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={chartData} layout="vertical">
+                    <CartesianGrid stroke="#3a4a43" strokeDasharray="3 3" />
+                    <XAxis
+                      type="number"
+                      stroke="#b9cbc1"
+                      tick={{ fontSize: 10, fontFamily: 'JetBrains Mono' }}
+                      tickFormatter={(value: number) => formatCurrency(value, currency)}
+                    />
+                    <YAxis
+                      type="category"
+                      dataKey="name"
+                      stroke="#b9cbc1"
+                      tick={{ fontSize: 11, fontFamily: 'JetBrains Mono' }}
+                      width={100}
+                    />
+                    <Tooltip
+                      formatter={(value) => formatCurrency(Number(value), currency)}
+                      contentStyle={{
+                        backgroundColor: '#0d1c2d',
+                        border: '1px solid #3a4a43',
+                        borderRadius: '4px',
+                        fontFamily: 'JetBrains Mono',
+                        fontSize: '12px',
+                        color: '#d4e4fa',
+                      }}
+                    />
+                    <Bar dataKey="amount" fill="#00e1ab" radius={[0, 2, 2, 0]} />
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+            </CardBody>
+          </Card>
+        );
+      })}
+    </div>
   );
 }
 
@@ -242,10 +374,18 @@ function RecentTransactions() {
       <table className="w-full text-left text-sm border-collapse">
         <thead>
           <tr className="bg-surface border-b border-outline-variant">
-            <th className="py-3 px-6 font-medium text-on-surface-variant text-xs uppercase tracking-wider">Date</th>
-            <th className="py-3 px-6 font-medium text-on-surface-variant text-xs uppercase tracking-wider">Description</th>
-            <th className="py-3 px-6 font-medium text-on-surface-variant text-xs uppercase tracking-wider">Category</th>
-            <th className="py-3 px-6 font-medium text-on-surface-variant text-xs uppercase tracking-wider text-right">Amount</th>
+            <th className="py-3 px-6 font-medium text-on-surface-variant text-xs uppercase tracking-wider">
+              Date
+            </th>
+            <th className="py-3 px-6 font-medium text-on-surface-variant text-xs uppercase tracking-wider">
+              Description
+            </th>
+            <th className="py-3 px-6 font-medium text-on-surface-variant text-xs uppercase tracking-wider">
+              Category
+            </th>
+            <th className="py-3 px-6 font-medium text-on-surface-variant text-xs uppercase tracking-wider text-right">
+              Amount
+            </th>
           </tr>
         </thead>
         <tbody className="font-mono text-sm divide-y divide-outline-variant/50">
@@ -264,7 +404,7 @@ function RecentTransactions() {
                 }`}
               >
                 {tx.type === 'income' ? '+' : '-'}
-                {formatCurrency(tx.amount)}
+                {formatCurrency(tx.amount, tx.account_currency ?? 'INR')}
               </td>
             </tr>
           ))}
@@ -292,7 +432,15 @@ function UpcomingRecurring() {
     return <ErrorState message="Failed to load recurring data" onRetry={() => refetch()} />;
   }
 
-  const items: Array<{ merchant: string; amount: number; frequency: string; lastDate: string }> = data.data;
+  const items: Array<{
+    merchant: string;
+    amount: number;
+    currency?: string;
+    frequency: string;
+    lastDate: string;
+    nextDueDate?: string;
+    forecastBasis?: string;
+  }> = data.data;
 
   return (
     <Card>
@@ -302,17 +450,25 @@ function UpcomingRecurring() {
           Upcoming Recurring
         </h3>
         {items.length === 0 ? (
-          <p className="text-sm text-on-surface-variant text-center py-4">No recurring transactions detected</p>
+          <p className="text-sm text-on-surface-variant text-center py-4">
+            No recurring transactions detected
+          </p>
         ) : (
           <div className="space-y-3">
             {items.slice(0, 6).map((item, i) => (
-              <div key={i} className="flex items-center justify-between border-b border-outline-variant/30 pb-2 last:border-0 last:pb-0">
+              <div
+                key={i}
+                className="flex items-center justify-between border-b border-outline-variant/30 pb-2 last:border-0 last:pb-0"
+              >
                 <div>
                   <p className="text-sm font-mono text-on-surface">{item.merchant}</p>
-                  <p className="text-xs text-on-surface-variant">{item.frequency} · last: {item.lastDate}</p>
+                  <p className="text-xs text-on-surface-variant">
+                    Est. due {item.nextDueDate ?? 'soon'} ·{' '}
+                    {item.forecastBasis ?? `${item.frequency}; last: ${item.lastDate}`}
+                  </p>
                 </div>
                 <span className="text-sm font-mono text-error tabular-nums">
-                  -{formatCurrency(item.amount)}
+                  -{formatCurrency(item.amount, item.currency ?? 'INR')}
                 </span>
               </div>
             ))}
@@ -334,27 +490,39 @@ function LargestExpenses() {
     return <ErrorState message="Failed to load expenses" onRetry={() => refetch()} />;
   }
 
-  const items: Array<{ id: number; date: string; description: string; amount: number; categoryName: string | null }> = data.data;
+  const items: Array<{
+    id: number;
+    date: string;
+    description: string;
+    amount: number;
+    currency?: string;
+    categoryName: string | null;
+  }> = data.data;
 
   return (
     <Card>
       <CardBody>
         <h3 className="text-base font-medium text-on-surface mb-4 flex items-center gap-2">
           <Flame className="h-5 w-5 text-error" />
-          Largest Expenses
+          Largest expenses by currency
         </h3>
         {items.length === 0 ? (
           <p className="text-sm text-on-surface-variant text-center py-4">No expenses recorded</p>
         ) : (
           <div className="space-y-3">
             {items.map((item) => (
-              <div key={item.id} className="flex items-center justify-between border-b border-outline-variant/30 pb-2 last:border-0 last:pb-0">
+              <div
+                key={item.id}
+                className="flex items-center justify-between border-b border-outline-variant/30 pb-2 last:border-0 last:pb-0"
+              >
                 <div>
                   <p className="text-sm font-mono text-on-surface">{item.description}</p>
-                  <p className="text-xs text-on-surface-variant">{item.date} · {item.categoryName ?? 'Uncategorized'}</p>
+                  <p className="text-xs text-on-surface-variant">
+                    {item.date} · {item.categoryName ?? 'Uncategorized'}
+                  </p>
                 </div>
                 <span className="text-sm font-mono text-error tabular-nums">
-                  -{formatCurrency(item.amount)}
+                  -{formatCurrency(item.amount, item.currency ?? 'INR')}
                 </span>
               </div>
             ))}

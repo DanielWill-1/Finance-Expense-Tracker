@@ -38,7 +38,9 @@ export function Pagination({ page, totalPages, total, limit, onPageChange }: Pag
         </button>
         {pages.map((p, i) =>
           p === '...' ? (
-            <span key={`dots-${i}`} className="text-on-surface-variant mx-1">...</span>
+            <span key={`dots-${i}`} className="text-on-surface-variant mx-1">
+              ...
+            </span>
           ) : (
             <button
               key={p}

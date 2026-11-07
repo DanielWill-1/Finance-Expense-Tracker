@@ -12,30 +12,44 @@ export interface RuleRow {
   created_at: string;
 }
 
+export interface CreateRuleRecord {
+  priority?: number;
+  containsText?: string | null;
+  startsWith?: string | null;
+  endsWith?: string | null;
+  regex?: string | null;
+  categoryId: number;
+  enabled?: boolean;
+}
+
+export interface UpdateRuleRecord {
+  priority?: number;
+  containsText?: string | null;
+  startsWith?: string | null;
+  endsWith?: string | null;
+  regex?: string | null;
+  categoryId?: number;
+  enabled?: boolean;
+}
+
 export class RuleRepository {
   findAllEnabled(): RuleRow[] {
-    return sqlite.prepare('SELECT * FROM rules WHERE enabled = 1 ORDER BY priority DESC').all() as RuleRow[];
+    return sqlite
+      .prepare('SELECT * FROM rules WHERE enabled = 1 ORDER BY priority DESC, id ASC')
+      .all() as RuleRow[];
   }
 
   findAll(): RuleRow[] {
-    return sqlite.prepare('SELECT * FROM rules ORDER BY priority DESC').all() as RuleRow[];
+    return sqlite.prepare('SELECT * FROM rules ORDER BY priority DESC, id ASC').all() as RuleRow[];
   }
 
   findById(id: number): RuleRow | undefined {
     return sqlite.prepare('SELECT * FROM rules WHERE id = ?').get(id) as RuleRow | undefined;
   }
 
-  create(input: {
-    priority?: number;
-    containsText?: string;
-    startsWith?: string;
-    endsWith?: string;
-    regex?: string;
-    categoryId: number;
-    enabled?: boolean;
-  }): RuleRow {
+  create(input: CreateRuleRecord): RuleRow {
     const now = new Date().toISOString();
-    const enabled = input.enabled ?? true ? 1 : 0;
+    const enabled = (input.enabled ?? true) ? 1 : 0;
     const result = sqlite
       .prepare(
         `INSERT INTO rules (priority, contains_text, starts_with, ends_with, regex, category_id, enabled, created_at)
@@ -54,18 +68,7 @@ export class RuleRepository {
     return this.findById(Number(result.lastInsertRowid))!;
   }
 
-  update(
-    id: number,
-    input: Partial<{
-      priority: number;
-      containsText: string | null;
-      startsWith: string | null;
-      endsWith: string | null;
-      regex: string | null;
-      categoryId: number;
-      enabled: boolean;
-    }>,
-  ): RuleRow | undefined {
+  update(id: number, input: UpdateRuleRecord): RuleRow | undefined {
     const existing = this.findById(id);
     if (!existing) return undefined;
 

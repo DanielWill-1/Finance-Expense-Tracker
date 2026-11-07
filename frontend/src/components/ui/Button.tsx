@@ -17,7 +17,8 @@ export function Button({
   disabled,
   ...props
 }: ButtonProps) {
-  const base = 'inline-flex items-center justify-center gap-2 font-mono text-sm font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed';
+  const base =
+    'inline-flex items-center justify-center gap-2 font-mono text-sm font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed';
 
   const variants: Record<string, string> = {
     primary: 'bg-primary-fixed-dim text-on-primary hover:bg-primary-container',

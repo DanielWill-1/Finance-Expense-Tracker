@@ -75,10 +75,15 @@ const seed = () => {
 
   insertSettings();
 
-  console.log('Seed data inserted successfully');
-  console.log(`  ${categories.length} categories`);
-  console.log(`  ${accounts.length} accounts`);
-  console.log(`  ${settings.length} settings`);
+  // eslint-disable-next-line no-console -- The seed CLI reports its generated sample data to stdout.
+  console.log(
+    [
+      'Seed data inserted successfully',
+      `  ${categories.length} categories`,
+      `  ${accounts.length} accounts`,
+      `  ${settings.length} settings`,
+    ].join('\n'),
+  );
 };
 
 seed();

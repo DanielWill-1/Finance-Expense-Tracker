@@ -1,8 +1,15 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { createTransaction, updateTransaction, fetchCategories, fetchAccounts } from '../services/endpoints';
+import {
+  createTransaction,
+  updateTransaction,
+  fetchCategories,
+  fetchAccounts,
+} from '../services/endpoints';
 import { X, Loader2 } from 'lucide-react';
 import type { Transaction } from '../types/api';
+import { invalidateFinanceQueries } from '../services/queryInvalidation';
+import { useDialogAccessibility } from '../hooks/useDialogAccessibility';
 
 interface TransactionModalProps {
   onClose: () => void;
@@ -10,6 +17,8 @@ interface TransactionModalProps {
 }
 
 export function TransactionModal({ onClose, editTransaction }: TransactionModalProps) {
+  const dialogRef = useRef<HTMLDivElement>(null);
+  useDialogAccessibility(dialogRef, onClose);
   const queryClient = useQueryClient();
   const isEdit = !!editTransaction;
 
@@ -54,7 +63,7 @@ export function TransactionModal({ onClose, editTransaction }: TransactionModalP
     mutationFn: () => {
       const payload = {
         date: form.date,
-        description: form.description,
+        description: form.description.trim(),
         amount: Number(form.amount),
         type: form.type,
         categoryId: form.categoryId ? Number(form.categoryId) : null,
@@ -69,13 +78,7 @@ export function TransactionModal({ onClose, editTransaction }: TransactionModalP
       return createTransaction(payload);
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['transactions'] });
-      queryClient.invalidateQueries({ queryKey: ['analytics-summary'] });
-      queryClient.invalidateQueries({ queryKey: ['analytics-monthly'] });
-      queryClient.invalidateQueries({ queryKey: ['analytics-categories'] });
-      queryClient.invalidateQueries({ queryKey: ['transactions-recent'] });
-      queryClient.invalidateQueries({ queryKey: ['upcoming-recurring'] });
-      queryClient.invalidateQueries({ queryKey: ['largest-expenses'] });
+      invalidateFinanceQueries(queryClient);
       onClose();
     },
     onError: (err: Error) => setError(err.message || 'Failed to save transaction'),
@@ -85,7 +88,7 @@ export function TransactionModal({ onClose, editTransaction }: TransactionModalP
     e.preventDefault();
     setError('');
 
-    if (!form.date || !form.description || !form.amount) {
+    if (!form.date || !form.description.trim() || !form.amount) {
       setError('Date, description, and amount are required');
       return;
     }
@@ -93,8 +96,13 @@ export function TransactionModal({ onClose, editTransaction }: TransactionModalP
       setError('Amount must be a positive number');
       return;
     }
-    if (!/^\d{4}-\d{2}-\d{2}$/.test(form.date)) {
-      setError('Date must be in YYYY-MM-DD format');
+    const parsedDate = new Date(`${form.date}T00:00:00.000Z`);
+    if (
+      !/^\d{4}-\d{2}-\d{2}$/.test(form.date) ||
+      Number.isNaN(parsedDate.getTime()) ||
+      parsedDate.toISOString().slice(0, 10) !== form.date
+    ) {
+      setError('Date must be a real date in YYYY-MM-DD format');
       return;
     }
 
@@ -105,19 +113,36 @@ export function TransactionModal({ onClose, editTransaction }: TransactionModalP
   const accounts = accountsRes?.data ?? [];
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm">
-      <div className="bg-surface-container-lowest border border-outline-variant rounded-lg w-full max-w-lg max-h-[90vh] overflow-hidden flex flex-col">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-3">
+      <div
+        ref={dialogRef}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="transaction-dialog-title"
+        tabIndex={-1}
+        className="bg-surface-container-lowest border border-outline-variant rounded-lg w-full max-w-lg max-h-[90vh] overflow-hidden flex flex-col"
+      >
         <div className="flex items-center justify-between p-6 border-b border-outline-variant/50">
-          <h2 className="text-lg font-medium text-on-surface">
+          <h2 id="transaction-dialog-title" className="text-lg font-medium text-on-surface">
             {isEdit ? 'Edit Transaction' : 'Add Transaction'}
           </h2>
-          <button onClick={onClose} className="text-on-surface-variant hover:text-on-surface">
+          <button
+            type="button"
+            onClick={onClose}
+            aria-label="Close transaction dialog"
+            className="text-on-surface-variant hover:text-on-surface"
+          >
             <X className="h-5 w-5" />
           </button>
         </div>
 
         {error && (
-          <div className="mx-6 mt-4 p-3 bg-error-container/20 border border-error/30 rounded text-error text-sm">
+          <div
+            id="transaction-form-error"
+            role="alert"
+            aria-live="polite"
+            className="mx-6 mt-4 p-3 bg-error-container/20 border border-error/30 rounded text-error text-sm"
+          >
             {error}
           </div>
         )}
@@ -125,9 +150,16 @@ export function TransactionModal({ onClose, editTransaction }: TransactionModalP
         <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto p-6 space-y-4">
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="block text-xs text-on-surface-variant uppercase tracking-wider mb-1">Date</label>
+              <label
+                htmlFor="transaction-date"
+                className="block text-xs text-on-surface-variant uppercase tracking-wider mb-1"
+              >
+                Date
+              </label>
               <input
+                id="transaction-date"
                 type="date"
+                data-dialog-initial-focus
                 value={form.date}
                 onChange={(e) => setForm({ ...form, date: e.target.value })}
                 className="w-full bg-surface-container-low border border-outline-variant rounded py-2 px-3 text-sm font-mono text-on-surface focus:border-primary-fixed-dim focus:outline-none"
@@ -135,8 +167,14 @@ export function TransactionModal({ onClose, editTransaction }: TransactionModalP
               />
             </div>
             <div>
-              <label className="block text-xs text-on-surface-variant uppercase tracking-wider mb-1">Type</label>
+              <label
+                htmlFor="transaction-type"
+                className="block text-xs text-on-surface-variant uppercase tracking-wider mb-1"
+              >
+                Type
+              </label>
               <select
+                id="transaction-type"
                 value={form.type}
                 onChange={(e) => setForm({ ...form, type: e.target.value as 'income' | 'expense' })}
                 className="w-full bg-surface-container-low border border-outline-variant rounded py-2 px-3 text-sm font-mono text-on-surface focus:border-primary-fixed-dim focus:outline-none"
@@ -148,8 +186,14 @@ export function TransactionModal({ onClose, editTransaction }: TransactionModalP
           </div>
 
           <div>
-            <label className="block text-xs text-on-surface-variant uppercase tracking-wider mb-1">Description</label>
+            <label
+              htmlFor="transaction-description"
+              className="block text-xs text-on-surface-variant uppercase tracking-wider mb-1"
+            >
+              Description
+            </label>
             <input
+              id="transaction-description"
               type="text"
               value={form.description}
               onChange={(e) => setForm({ ...form, description: e.target.value })}
@@ -161,8 +205,14 @@ export function TransactionModal({ onClose, editTransaction }: TransactionModalP
 
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="block text-xs text-on-surface-variant uppercase tracking-wider mb-1">Amount</label>
+              <label
+                htmlFor="transaction-amount"
+                className="block text-xs text-on-surface-variant uppercase tracking-wider mb-1"
+              >
+                Amount
+              </label>
               <input
+                id="transaction-amount"
                 type="number"
                 step="0.01"
                 min="0.01"
@@ -174,8 +224,14 @@ export function TransactionModal({ onClose, editTransaction }: TransactionModalP
               />
             </div>
             <div>
-              <label className="block text-xs text-on-surface-variant uppercase tracking-wider mb-1">Merchant</label>
+              <label
+                htmlFor="transaction-merchant"
+                className="block text-xs text-on-surface-variant uppercase tracking-wider mb-1"
+              >
+                Merchant
+              </label>
               <input
+                id="transaction-merchant"
                 type="text"
                 value={form.merchant}
                 onChange={(e) => setForm({ ...form, merchant: e.target.value })}
@@ -187,36 +243,58 @@ export function TransactionModal({ onClose, editTransaction }: TransactionModalP
 
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="block text-xs text-on-surface-variant uppercase tracking-wider mb-1">Category</label>
+              <label
+                htmlFor="transaction-category"
+                className="block text-xs text-on-surface-variant uppercase tracking-wider mb-1"
+              >
+                Category
+              </label>
               <select
+                id="transaction-category"
                 value={form.categoryId}
                 onChange={(e) => setForm({ ...form, categoryId: e.target.value })}
                 className="w-full bg-surface-container-low border border-outline-variant rounded py-2 px-3 text-sm font-mono text-on-surface focus:border-primary-fixed-dim focus:outline-none"
               >
                 <option value="">Uncategorized</option>
                 {categories.map((c) => (
-                  <option key={c.id} value={c.id}>{c.name}</option>
+                  <option key={c.id} value={c.id}>
+                    {c.name}
+                  </option>
                 ))}
               </select>
             </div>
             <div>
-              <label className="block text-xs text-on-surface-variant uppercase tracking-wider mb-1">Account</label>
+              <label
+                htmlFor="transaction-account"
+                className="block text-xs text-on-surface-variant uppercase tracking-wider mb-1"
+              >
+                Account
+              </label>
               <select
+                id="transaction-account"
                 value={form.accountId}
                 onChange={(e) => setForm({ ...form, accountId: e.target.value })}
                 className="w-full bg-surface-container-low border border-outline-variant rounded py-2 px-3 text-sm font-mono text-on-surface focus:border-primary-fixed-dim focus:outline-none"
               >
                 <option value="">No account</option>
                 {accounts.map((a) => (
-                  <option key={a.id} value={a.id}>{a.name}</option>
+                  <option key={a.id} value={a.id}>
+                    {a.name}
+                  </option>
                 ))}
               </select>
             </div>
           </div>
 
           <div>
-            <label className="block text-xs text-on-surface-variant uppercase tracking-wider mb-1">Notes</label>
+            <label
+              htmlFor="transaction-notes"
+              className="block text-xs text-on-surface-variant uppercase tracking-wider mb-1"
+            >
+              Notes
+            </label>
             <textarea
+              id="transaction-notes"
               value={form.notes}
               onChange={(e) => setForm({ ...form, notes: e.target.value })}
               className="w-full bg-surface-container-low border border-outline-variant rounded py-2 px-3 text-sm font-mono text-on-surface focus:border-primary-fixed-dim focus:outline-none resize-none"

@@ -85,7 +85,7 @@ export async function createAccount(input: Partial<Account>) {
   return data;
 }
 
-export async function updateAccount(id: number, input: Partial<Account>) {
+export async function updateAccount(id: number, input: Partial<Account> & { isActive?: boolean }) {
   const { data } = await apiClient.put<ApiResponse<Account>>(`/accounts/${id}`, input);
   return data;
 }
@@ -99,10 +99,9 @@ export async function fetchAnalyticsSummary(params?: {
   endDate?: string;
   accountId?: number;
 }) {
-  const { data } = await apiClient.get<ApiResponse<AnalyticsSummary>>(
-    '/analytics/summary',
-    { params },
-  );
+  const { data } = await apiClient.get<ApiResponse<AnalyticsSummary>>('/analytics/summary', {
+    params,
+  });
   return data;
 }
 
@@ -111,10 +110,9 @@ export async function fetchAnalyticsMonthly(params?: {
   months?: number;
   accountId?: number;
 }) {
-  const { data } = await apiClient.get<ApiResponse<MonthlyData[]>>(
-    '/analytics/monthly',
-    { params },
-  );
+  const { data } = await apiClient.get<ApiResponse<MonthlyData[]>>('/analytics/monthly', {
+    params,
+  });
   return data;
 }
 
@@ -124,10 +122,9 @@ export async function fetchAnalyticsCategories(params?: {
   endDate?: string;
   accountId?: number;
 }) {
-  const { data } = await apiClient.get<ApiResponse<CategoryTotal[]>>(
-    '/analytics/categories',
-    { params },
-  );
+  const { data } = await apiClient.get<ApiResponse<CategoryTotal[]>>('/analytics/categories', {
+    params,
+  });
   return data;
 }
 
@@ -136,11 +133,37 @@ export async function fetchSettings() {
   return data;
 }
 
-export async function updateSettings(settings: Record<string, string>) {
-  const { data } = await apiClient.put<ApiResponse<Record<string, string>>>(
-    '/settings',
-    settings,
+export async function fetchHealth() {
+  const { data } =
+    await apiClient.get<ApiResponse<{ status: string; database: string }>>('/health');
+  return data;
+}
+
+export async function restoreDatabaseBackup(file: File) {
+  const formData = new FormData();
+  formData.append('backup', file);
+  const { data } = await apiClient.post<ApiResponse<{ restored: boolean; recoveryBackup: string }>>(
+    '/data/restore',
+    formData,
+    {
+      headers: { 'Content-Type': 'multipart/form-data' },
+      timeout: 120_000,
+    },
   );
+  return data;
+}
+
+export async function purgeDatabase() {
+  const { data } = await apiClient.delete<
+    ApiResponse<{ counts: Record<string, number>; recoveryBackup: string }>
+  >('/data', {
+    data: { confirmation: 'PURGE' },
+  });
+  return data;
+}
+
+export async function updateSettings(settings: Record<string, string>) {
+  const { data } = await apiClient.put<ApiResponse<Record<string, string>>>('/settings', settings);
   return data;
 }
 
@@ -149,10 +172,9 @@ export async function fetchImportHistory(params?: {
   page?: number;
   limit?: number;
 }) {
-  const { data } = await apiClient.get<PaginatedResponse<ImportBatch>>(
-    '/import/history',
-    { params },
-  );
+  const { data } = await apiClient.get<PaginatedResponse<ImportBatch>>('/import/history', {
+    params,
+  });
   return data;
 }
 
@@ -166,7 +188,11 @@ export async function uploadCSV(file: File) {
   return data;
 }
 
-export async function confirmImport(batchId: number, rows: Record<string, unknown>[], accountId?: number) {
+export async function confirmImport(
+  batchId: number,
+  rows: Record<string, unknown>[],
+  accountId?: number,
+) {
   const { data } = await apiClient.post(`/import/${batchId}/confirm`, { rows, accountId });
   return data;
 }

@@ -1,177 +1,62 @@
-**TECHNICAL ARCHITECTURE BRIEF**
+﻿# GhostLedger Technical Architecture Brief
 
-**GhostLedger**
+Updated: 2026-11-08
 
-A local-first personal finance application architecture for a portfolio-grade full-stack project
+## Purpose
 
-| **Project Type**          | Local-first personal finance tracker with optional AI assistance          |
-| ------------------------- | ------------------------------------------------------------------------- |
-| **Primary Audience**      | Portfolio reviewers, backend/SWE interviewers, and future contributors    |
-| **Recommended Stack**     | React + Vite, Express, TypeScript, SQLite, Drizzle ORM, Zod, Docker       |
-| **Architecture Priority** | Simple, privacy-preserving, maintainable, and credible for real-world use |
+This brief describes the implementation in this repository and separates it from the longer-term product roadmap. The README contains setup instructions; `docs/architecture.md` describes runtime boundaries; `docs/project-audit.md` records the repair evidence and release gaps.
 
-# **Executive Summary**
+## Product summary
 
-GhostLedger should be positioned as a local-first personal finance application that gives users ownership of their financial data while still demonstrating serious backend engineering. The strongest version of the project avoids unnecessary platform complexity, uses SQLite deliberately, keeps AI optional, and presents a clean layered backend that is easy to test, extend, and explain in interviews.
+GhostLedger is a local-first personal finance ledger for one user on a local machine. A React and TypeScript frontend communicates with an Express API. SQLite stores accounts, categories, transactions, import history, rules, and settings. No sign-in, telemetry service, cloud account, or AI provider is required for ledger use.
 
-**Recommended Direction**
+The application supports manual transaction entry and editing, account/category setup, CSV review and import, persisted categorization rules, analytics, local chat history, database backup/restore, CSV export, and confirmed purge. AI analysis is unavailable. Other bank formats, bulk actions, expanded rule actions, and recurring-payment confirmation are future scope.
 
-Build with TypeScript across the stack, SQLite with Drizzle ORM, and a layered Express backend using routes, controllers, services, repositories, and explicit validation boundaries.
+## Runtime architecture
 
-# **Project Goals**
+```text
+React + TypeScript + Vite
+          │ same-origin API in production; proxy in development
+          ▼
+Express routes → controllers → services → repositories → SQLite
+```
 
-The goal is not to create another generic CRUD finance dashboard. The project should tell a stronger engineering story: privacy-first design, reliable local storage, bank statement import, rule-based automation, and optional AI features that operate on only the minimum necessary data.
+- Routes register endpoints, upload limits, and middleware.
+- Controllers validate request boundaries and shape responses.
+- Services own financial and import workflows.
+- Repositories own prepared SQLite queries and writes.
+- Ordered TypeScript migrations are the schema authority and are recorded in `schema_migrations`.
+- The database layer uses `better-sqlite3` with parameterized SQL. Drizzle is not used.
 
-- Provide a usable local finance tracker for income, expenses, accounts, imports, categories, and recurring transactions.
-- Keep the application simple enough to finish, demo, and maintain without turning it into a large SaaS platform.
-- Show backend discipline through typed boundaries, migrations, validation, modular services, and testable data access.
-- Give the project a clear identity: no account required, no telemetry, no vendor lock-in, and full user control over data.
+The development UI defaults to `127.0.0.1:5173`; the API defaults to `127.0.0.1:3001`. Production Express serves the built frontend and API together. Known application routes support direct navigation; unknown API paths return JSON errors.
 
-# **Recommended Technology Stack**
+## Data and financial semantics
 
-| **Layer**  | **Recommendation**        | **Reason**                                                                                               |
-| ---------- | ------------------------- | -------------------------------------------------------------------------------------------------------- |
-| Frontend   | React + Vite + TypeScript | Fast local development, clean separation from the API, and less framework overhead than Next.js.         |
-| Backend    | Express + TypeScript      | Simple REST API shape, familiar middleware model, and strong interview signal for backend roles.         |
-| Database   | SQLite                    | Ideal for a single-user local-first app: fast, durable, portable, zero-install, and easy to back up.     |
-| ORM        | Drizzle ORM               | Schema safety, migrations, lightweight TypeScript integration, and less ceremony than heavier ORMs.      |
-| Validation | Zod                       | Clear runtime validation for request bodies, CSV rows, AI outputs, and environment/configuration values. |
-| Packaging  | Docker                    | Repeatable local setup and a cleaner demo story for reviewers.                                           |
+- Account balances are user-maintained current snapshots. Transactions do not change account balances.
+- Net Worth sums active account snapshots by currency. Negative balances represent liabilities. The scalar value is unavailable when accounts span currencies.
+- A transaction uses its account currency, or INR when it has no account. Account currency cannot change after transactions are linked.
+- Amounts accept two decimal places. Aggregates convert values to integer cents and keep currencies separate.
+- Income, expenses, and net savings cover all transactions unless a date range is supplied. Monthly burn uses expenses from the six most recent completed calendar months.
+- Recurring detection is a heuristic based on repeated monthly expenses. Upcoming dates are estimates, not confirmed bills.
 
-# **Repository Structure**
+## CSV import scope
 
-For the initial version, keep the repository understandable. A frontend/backend split is the best starting point. A larger packages-based monorepo can be introduced later if reusable modules become valuable.
+Built-in formats are HDFC, Chase, and a generic layout. HDFC dates use day/month/year; Chase dates use month/day/year; ambiguous generic slash dates are rejected, and ISO dates are recommended. Synthetic examples are in `docs/examples`. Other bank adapters are not verified or claimed.
 
-| **Path**  | **Purpose**                                                                                   |
-| --------- | --------------------------------------------------------------------------------------------- |
-| frontend/ | React + Vite application, route-level pages, components, hooks, and client API wrappers.      |
-| backend/  | Express API, services, repositories, database migrations, validation schemas, and middleware. |
-| docs/     | Architecture notes, import format documentation, API examples, and project decisions.         |
-| docker/   | Dockerfile, compose configuration, and runtime packaging helpers.                             |
-| .github/  | CI workflows, issue templates, and contribution automation.                                   |
+A preview validates dates, amounts, required fields, and account/category references while retaining source row numbers. Duplicate rows receive explicit keep/skip choices. Confirmation and undo use database transactions, and processed batches cannot be confirmed again.
 
-If the application grows, the future structure can move toward apps/web, apps/server, packages/database, packages/ai, packages/shared, packages/csv-parser, and packages/rules-engine. That refactor should happen after core functionality is stable, not before.
+## Privacy and ownership
 
-# **Backend Architecture**
+The API binds to loopback by default. Remote mode is an explicit operator choice and does not add authentication. CORS is not authentication. Generic settings are allowlisted; API keys are not accepted into the finance database. Legacy secret-shaped settings are removed without logging their values. Fonts are bundled locally.
 
-The backend should use a layered architecture so each part has a clear responsibility. This makes the code easier to reason about and gives interviewers a concrete example of maintainable service design.
+SQLite backups use the database backup API to include committed WAL data. Restore validates integrity and schema compatibility and creates a recovery snapshot before replacement. CSV export uses stable columns and protects formula-like text. Purge requires explicit confirmation and creates a recovery snapshot first.
 
-| **Layer**    | **Responsibility**                                                                                      |
-| ------------ | ------------------------------------------------------------------------------------------------------- |
-| Routes       | Map HTTP methods and paths to controllers. Keep routes thin and declarative.                            |
-| Controllers  | Handle request parsing, response status codes, and orchestration of service calls.                      |
-| Services     | Own business logic such as categorization, duplicate checks, recurring detection, and import workflows. |
-| Repositories | Provide focused database access methods and hide SQL/ORM details from services.                         |
-| Database     | Maintain Drizzle schemas, migrations, indexes, constraints, and seed/dev utilities.                     |
-| Middleware   | Centralize validation, error handling, rate limiting, security headers, and request logging.            |
+## Local verification and limits
 
-Example request flow: POST /transactions -> controller -> TransactionService -> TransactionRepository -> SQLite.
+On 2026-11-08, `npm ci`, the formatting check, lint, build, 53 backend tests, the browser workflow, and `npm audit` completed successfully; the audit reported zero vulnerabilities. Route-level lazy loading reduced the main production bundle to 297.83 kB, with the largest page chunk at 418.23 kB. The compiled production server returned 200 for the root page, a deep link, and `/api/health`, and returned 404 for an unknown API path. The install and checks ran on Node 22.12.0, below the repository minimum of 22.13.0, and npm emitted engine warnings. Repeat release checks on a supported Node version.
 
-# **Data Architecture**
+`docker compose config --quiet` passes, but Docker Engine is unavailable here, so image build, live health checks, and persistence across restart/rebuild have not been verified. Manual browser review and screenshot capture were not completed because the computer-use browser guard could not verify Opera's current URL. Hosted CI has not been run. The Word version of this brief is still awaiting an update and render review.
 
-SQLite is the right database for this problem. The expected usage pattern is a single user, local-first storage, low write contention, and a dataset that is small by database standards. That makes SQLite a deliberate engineering choice rather than a shortcut.
+## Roadmap
 
-## **Core Entities**
-
-- Account: bank, wallet, card, cash, investment, or custom account metadata.
-- Transaction: amount, date, merchant, description, category, account, source import, and user annotations.
-- Category: user-editable income and expense taxonomy.
-- ImportBatch: imported file name, parser type, row count, success/failure state, and undo support.
-- Rule: deterministic categorization rule based on merchant, description, amount, or account conditions.
-- RecurringTransaction: detected or confirmed repeating payment pattern.
-
-# **Import and Automation Features**
-
-The CSV importer should be treated as a major feature, not an afterthought. A polished importer is more impressive than a generic dashboard because it shows file processing, validation, error handling, and real user workflow design.
-
-| **Feature**         | **Implementation Notes**                                                                                                                                                   |
-| ------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Bank CSV Import     | Support common Indian and international formats such as HDFC, ICICI, SBI, Axis, Chase, and Bank of America. Use parser detection rather than one universal CSV assumption. |
-| Import History      | Record each import batch with file name, timestamp, row count, parser, status, and ability to undo imported rows.                                                          |
-| Rule Engine         | Allow deterministic IF description/merchant/amount/account conditions THEN category/action rules before invoking AI.                                                       |
-| Duplicate Detection | Flag likely duplicates using amount, merchant, timestamp proximity, external IDs, and import batch metadata.                                                               |
-| Recurring Detection | Detect subscriptions and bills such as rent, utilities, insurance, gym, Spotify, Netflix, and similar patterns.                                                            |
-
-# **AI Integration Strategy**
-
-AI should remain optional. The application should work fully without AI, support a cloud provider when configured, and optionally support a local model through Ollama. This keeps the privacy story intact while still allowing modern AI features.
-
-| **Mode**     | **Behavior**                                                                                                       |
-| ------------ | ------------------------------------------------------------------------------------------------------------------ |
-| No AI        | All core finance features continue to work through manual categories, rules, filters, and dashboard views.         |
-| Cloud API    | Use a provider abstraction for OpenAI, Anthropic, Groq, or other hosted models when the user supplies credentials. |
-| Local Ollama | Enable private local inference for users who prefer not to send financial context to a cloud model.                |
-
-For analysis questions, use lightweight retrieval instead of sending the full database. Determine the relevant time range, query SQLite for the necessary summary and rows, cap the result set, transform it into compact JSON, and send only that context to the selected model.
-
-# **Security and Privacy Requirements**
-
-- Do not store API keys inside the main SQLite finance database. Prefer a separate local config file, .env.local for development, or a secure keychain integration such as keytar.
-- Use migrations for schema changes. Avoid uncontrolled table creation at runtime.
-- Validate all inputs with Zod, including API requests, CSV rows, configuration values, and AI-generated structured outputs.
-- Sanitize CSV values before display or export to reduce CSV injection risk from formula-like content.
-- Apply Helmet and a clear Content Security Policy for the local web application.
-- Rate-limit AI and import endpoints to protect local resources and avoid accidental API spend.
-- Keep backups explicit and user-controlled, especially if the database contains sensitive transaction history.
-
-# **Dashboard Scope**
-
-The dashboard should focus on metrics that help the user understand behavior and take action. Avoid a decorative chart-only experience. Prioritize useful financial views that connect back to transactions, rules, and imports.
-
-| **Dashboard View** | **Purpose**                                                                   |
-| ------------------ | ----------------------------------------------------------------------------- |
-| Cash Flow          | Show monthly income, expenses, and net movement.                              |
-| Monthly Burn Rate  | Expose recurring spending pressure and average monthly expense trend.         |
-| Category Breakdown | Help users identify where money is going and which rules may need adjustment. |
-| Largest Expense    | Surface outliers for review.                                                  |
-| Upcoming Bills     | Use recurring detection to forecast predictable near-term expenses.           |
-| Net Worth          | Optional stretch feature if accounts and balances are modeled cleanly.        |
-
-# **Implementation Roadmap**
-
-- Phase 1: Project setup with Vite, Express, TypeScript, linting, formatting, shared environment validation, and Docker development flow.
-- Phase 2: SQLite + Drizzle schema, migrations, repositories, basic CRUD for accounts, categories, and transactions.
-- Phase 3: CSV import pipeline with parser detection, import history, validation errors, and undo support.
-- Phase 4: Rule engine, duplicate detection, recurring transaction detection, and dashboard metrics.
-- Phase 5: Optional AI provider abstraction, retrieval-limited finance Q&A, streaming responses, and local Ollama support.
-- Phase 6: Testing, documentation, sample data, screenshots, CI, and portfolio README polish.
-
-# **Portfolio and Interview Value**
-
-A well-executed GhostLedger project can stand out because it combines practical product thinking with backend engineering depth. The strongest talking points are not the charts; they are the architecture decisions and the operational details.
-
-| **Signal**               | **What It Demonstrates**                                                            |
-| ------------------------ | ----------------------------------------------------------------------------------- |
-| Local-first architecture | Product judgment, privacy awareness, and ability to choose the right storage model. |
-| SQLite + Drizzle         | Schema design, migrations, type safety, and pragmatic database selection.           |
-| CSV ETL pipeline         | File parsing, validation, normalization, error handling, and idempotency.           |
-| Layered backend          | Maintainability, testability, and professional API organization.                    |
-| Rule engine              | Deterministic automation and domain modeling beyond basic CRUD.                     |
-| Optional AI              | Modern AI integration without making the product dependent on a model provider.     |
-
-# **Final Recommendation**
-
-The proposed architecture is strong and should remain intentionally pragmatic. The non-negotiable upgrades are TypeScript throughout the stack, Drizzle ORM with SQLite, and a clean backend layer model. Those choices preserve simplicity while making the project feel professional, credible, and valuable for SWE/backend interviews.
-
-| **Area**             | **Assessment**                                                                      |
-| -------------------- | ----------------------------------------------------------------------------------- |
-| Architecture         | Excellent fit for a local-first portfolio project.                                  |
-| Technology Choices   | Strong, especially with TypeScript and Drizzle added.                               |
-| Developer Experience | High, if setup scripts, migrations, seed data, and Docker are documented.           |
-| Scalability          | Appropriate for the use case; avoid scaling concerns that do not match the product. |
-| Resume Impact        | High, because the project shows real engineering decisions beyond UI CRUD.          |
-
-
-
-Overall Roadmap
-Phase	Goal	Result
-1	Project Foundation	Project compiles and runs
-2	Database Layer	SQLite + Drizzle working
-3	Backend API	CRUD API complete
-4	Frontend Layout	Sidebar + routing + pages
-5	Ledger	CSV import + transaction table
-6	Dashboard	Charts + analytics
-7	AI Assistant	Multi-provider AI
-8	Settings	Rules + backup + config
-9	Polish	Testing + Docker + optimization
-10	Documentation	README + screenshots + release
+AI provider integrations, more bank-specific parsers, bulk ledger actions, richer rule conditions and actions, and user confirmation of recurring suggestions remain future work. See `README.md` for current setup and supported behavior.

@@ -1,9 +1,10 @@
-import { TransactionRepository } from '../repositories/transactionRepository';
+import type { TransactionRepository } from '../repositories/transactionRepository';
 
 export interface RecurringTransaction {
   merchant: string;
   description: string;
   amount: number;
+  currency: string;
   frequency: string;
   occurrences: number;
   firstDate: string;
@@ -11,71 +12,111 @@ export interface RecurringTransaction {
   estimatedMonthlyCost: number;
   categoryId: number | null;
   categoryName: string | null;
+  nextDueDate?: string;
+  forecastBasis?: string;
+}
+
+function addOneMonthClamped(value: string): string | null {
+  const parsed = new Date(`${value}T00:00:00.000Z`);
+  if (Number.isNaN(parsed.getTime())) return null;
+  const day = parsed.getUTCDate();
+  const year = parsed.getUTCFullYear();
+  const month = parsed.getUTCMonth() + 1;
+  const lastDay = new Date(Date.UTC(year, month + 1, 0)).getUTCDate();
+  return new Date(Date.UTC(year, month, Math.min(day, lastDay))).toISOString().slice(0, 10);
 }
 
 export class RecurringDetectionService {
   constructor(private transactionRepo: TransactionRepository) {}
 
   detectSubscriptions(): RecurringTransaction[] {
-    const all = this.transactionRepo.findAll(
-      {},
-      { page: 1, limit: 100000, offset: 0 },
-      { sortBy: 'date', sortOrder: 'desc' },
-    );
+    const transactions: ReturnType<TransactionRepository['findAll']>['data'] = [];
+    const pageSize = 1000;
+    let page = 1;
+    let total = 0;
+    do {
+      const batch = this.transactionRepo.findAll(
+        { type: 'expense' },
+        { page, limit: pageSize, offset: (page - 1) * pageSize },
+        { sortBy: 'date', sortOrder: 'desc' },
+      );
+      transactions.push(...batch.data);
+      total = batch.total;
+      page++;
+    } while (transactions.length < total);
 
-    const groups: Record<string, {
-      rows: typeof all.data;
-      merchant: string;
-      amounts: number[];
-      dates: string[];
-    }> = {};
-
-    for (const tx of all.data) {
-      const key = (tx.merchant || tx.description).toLowerCase().trim();
-      if (!groups[key]) {
-        groups[key] = { rows: [], merchant: tx.merchant || tx.description, amounts: [], dates: [] };
-      }
-      groups[key]!.rows.push(tx);
-      groups[key]!.amounts.push(tx.amount);
-      groups[key]!.dates.push(tx.date);
+    const groups = new Map<string, typeof transactions>();
+    for (const transaction of transactions) {
+      if (
+        !Number.isFinite(transaction.amount) ||
+        transaction.amount <= 0 ||
+        !/^\d{4}-\d{2}-\d{2}$/.test(transaction.date)
+      )
+        continue;
+      const date = new Date(`${transaction.date}T00:00:00.000Z`);
+      if (Number.isNaN(date.getTime()) || date.toISOString().slice(0, 10) !== transaction.date)
+        continue;
+      const merchant = (transaction.merchant || transaction.description).trim();
+      const currency = transaction.account_currency ?? 'INR';
+      const key = `${merchant.toLowerCase()}|${currency}`;
+      const group = groups.get(key) ?? [];
+      group.push(transaction);
+      groups.set(key, group);
     }
 
     const recurring: RecurringTransaction[] = [];
-
-    for (const [, group] of Object.entries(groups)) {
-      if (group.rows.length < 2) continue;
-
-      const uniqueMonths = new Set(group.dates.map((d) => d.slice(0, 7)));
-      if (uniqueMonths.size < 2) continue;
-
-      const amounts = group.amounts;
-      const avg = amounts.reduce((s, a) => s + a, 0) / amounts.length;
-      const consistent = amounts.every((a) => Math.abs(a - avg) < avg * 0.05);
-
-      if (consistent) {
-        const dates = group.dates.slice().sort();
-        const firstRow = group.rows[0]!;
-
-        recurring.push({
-          merchant: group.merchant,
-          description: firstRow.description,
-          amount: Math.round(avg * 100) / 100,
-          frequency: uniqueMonths.size >= 3 ? 'monthly' : 'likely monthly',
-          occurrences: group.rows.length,
-          firstDate: dates[0] ?? '',
-          lastDate: dates[dates.length - 1] ?? '',
-          estimatedMonthlyCost: Math.round(avg * 100) / 100,
-          categoryId: firstRow.category_id,
-          categoryName: null,
-        });
-      }
+    for (const group of groups.values()) {
+      const ordered = group.slice().sort((a, b) => a.date.localeCompare(b.date));
+      if (ordered.length < 3 || new Set(ordered.map((row) => row.date.slice(0, 7))).size < 3)
+        continue;
+      const dates = ordered.map((row) => new Date(`${row.date}T00:00:00.000Z`).getTime());
+      const gaps = dates
+        .slice(1)
+        .map((date, index) => Math.round((date - dates[index]!) / 86_400_000));
+      if (gaps.some((gap) => gap < 26 || gap > 35)) continue;
+      const averageCents =
+        ordered.reduce((sum, row) => sum + Math.round(row.amount * 100), 0) / ordered.length;
+      const average = Math.round(averageCents) / 100;
+      if (average <= 0 || ordered.some((row) => Math.abs(row.amount - average) > average * 0.05))
+        continue;
+      const first = ordered[0]!;
+      const last = ordered[ordered.length - 1]!;
+      recurring.push({
+        merchant: (last.merchant || last.description).trim(),
+        description: last.description,
+        amount: Math.round(average * 100) / 100,
+        currency: last.account_currency ?? 'INR',
+        frequency: 'monthly',
+        occurrences: ordered.length,
+        firstDate: first.date,
+        lastDate: last.date,
+        estimatedMonthlyCost: Math.round(average * 100) / 100,
+        categoryId: last.category_id,
+        categoryName: last.category_name ?? null,
+      });
     }
-
-    recurring.sort((a, b) => b.estimatedMonthlyCost - a.estimatedMonthlyCost);
-    return recurring;
+    return recurring.sort((a, b) => b.estimatedMonthlyCost - a.estimatedMonthlyCost);
   }
 
   getUpcomingRecurring(): RecurringTransaction[] {
-    return this.detectSubscriptions().slice(0, 10);
+    const today = new Date();
+    today.setUTCHours(0, 0, 0, 0);
+    const horizon = new Date(today);
+    horizon.setUTCDate(horizon.getUTCDate() + 45);
+    return this.detectSubscriptions()
+      .flatMap((item) => {
+        const nextDueDate = addOneMonthClamped(item.lastDate);
+        if (!nextDueDate) return [];
+        const due = new Date(`${nextDueDate}T00:00:00.000Z`);
+        if (due < today || due > horizon) return [];
+        return [
+          {
+            ...item,
+            nextDueDate,
+            forecastBasis: `Estimated from ${item.occurrences} monthly expense entries`,
+          },
+        ];
+      })
+      .slice(0, 10);
   }
 }

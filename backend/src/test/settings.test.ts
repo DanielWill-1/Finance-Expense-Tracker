@@ -12,8 +12,8 @@ beforeAll(async () => {
   app = mod.default;
 });
 
-afterAll(() => {
-  teardownTestDb('settings', testDb);
+afterAll(async () => {
+  await teardownTestDb('settings', testDb);
 });
 
 describe('Settings Endpoints', () => {
@@ -25,17 +25,24 @@ describe('Settings Endpoints', () => {
   });
 
   it('PUT /api/settings updates and creates settings', async () => {
-    const res = await request(app).put('/api/settings').send({
-      test_key: 'test_value',
-      another_key: 'another_value',
-    });
+    const res = await request(app).put('/api/settings').send({ theme: 'light', currency: 'INR' });
     expect(res.status).toBe(200);
     expect(res.body.success).toBe(true);
-    expect(res.body.data.test_key).toBe('test_value');
+    expect(res.body.data.theme).toBe('light');
   });
 
   it('GET /api/settings reflects updated values', async () => {
     const res = await request(app).get('/api/settings');
-    expect(res.body.data.test_key).toBe('test_value');
+    expect(res.body.data.theme).toBe('light');
+  });
+
+  it('rejects and never returns API key settings', async () => {
+    const write = await request(app).put('/api/settings').send({ ai_api_key: 'synthetic-secret' });
+    expect(write.status).toBe(400);
+    testDb
+      .prepare('INSERT INTO settings (key, value, updated_at) VALUES (?, ?, ?)')
+      .run('ai_api_key', 'legacy-secret', new Date().toISOString());
+    const read = await request(app).get('/api/settings');
+    expect(read.body.data).not.toHaveProperty('ai_api_key');
   });
 });

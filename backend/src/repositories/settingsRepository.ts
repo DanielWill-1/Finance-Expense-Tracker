@@ -13,17 +13,22 @@ export class SettingsRepository {
   }
 
   getByKey(key: string): SettingRow | undefined {
-    return sqlite.prepare('SELECT * FROM settings WHERE key = ?').get(key) as SettingRow | undefined;
+    return sqlite.prepare('SELECT * FROM settings WHERE key = ?').get(key) as
+      SettingRow | undefined;
   }
 
   upsert(key: string, value: string): SettingRow {
     const now = new Date().toISOString();
     const existing = this.getByKey(key);
     if (existing) {
-      sqlite.prepare('UPDATE settings SET value = ?, updated_at = ? WHERE key = ?').run(value, now, key);
+      sqlite
+        .prepare('UPDATE settings SET value = ?, updated_at = ? WHERE key = ?')
+        .run(value, now, key);
       return this.getByKey(key)!;
     }
-    sqlite.prepare('INSERT INTO settings (key, value, updated_at) VALUES (?, ?, ?)').run(key, value, now);
+    sqlite
+      .prepare('INSERT INTO settings (key, value, updated_at) VALUES (?, ?, ?)')
+      .run(key, value, now);
     return this.getByKey(key)!;
   }
 

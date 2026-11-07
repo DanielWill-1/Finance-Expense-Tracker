@@ -1,3 +1,7 @@
+# Product vision and roadmap
+
+This document preserves the broader GhostLedger product goals. It is not a report of delivered features. Check `README.md` and `docs/project-audit.md` for the current implementation and verification status. The current backend uses prepared `better-sqlite3` SQL and ordered TypeScript migrations; it does not use Drizzle. AI providers, additional bank parsers, bulk actions, expanded rule actions, and recurring-payment confirmation are future scope unless the current documentation explicitly reports otherwise. For current repository implementation guidance, see `instruction.md` and `docs/architecture.md`.
+
 # ROLE
 
 You are a senior Staff Software Engineer and Software Architect.

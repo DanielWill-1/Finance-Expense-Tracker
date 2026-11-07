@@ -4,7 +4,11 @@ import { Bot, Send, Brain, TrendingDown, AlertTriangle, History } from 'lucide-r
 import type { Message as MessageType } from '../services/chatContext';
 
 const SUGGESTED_PROMPTS = [
-  { icon: Brain, label: 'Analyze subscriptions', prompt: 'Analyze my subscriptions and recurring payments.' },
+  {
+    icon: Brain,
+    label: 'Analyze subscriptions',
+    prompt: 'Analyze my subscriptions and recurring payments.',
+  },
   { icon: TrendingDown, label: 'Burn rate', prompt: 'Calculate my current monthly burn rate.' },
   { icon: AlertTriangle, label: 'Anomalies', prompt: 'Find any unusual transactions this month.' },
   { icon: Brain, label: 'Spending', prompt: 'What are my top spending categories?' },
@@ -13,12 +17,11 @@ const SUGGESTED_PROMPTS = [
 export default function Assistant() {
   const { messages, addMessage, clearMessages } = useChat();
   const [input, setInput] = useState('');
-  const [isTyping, setIsTyping] = useState(false);
   const chatEndRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages, isTyping]);
+  }, [messages]);
 
   function handleSend(prompt?: string) {
     const text = prompt || input;
@@ -33,22 +36,14 @@ export default function Assistant() {
 
     addMessage(userMsg);
     setInput('');
-    setIsTyping(true);
-
-    setTimeout(() => {
-      const aiMsg: MessageType = {
-        id: (Date.now() + 1).toString(),
-        role: 'assistant',
-        content: `I've received your query about: *"${text}"*
-
-AI analysis will be available once an AI provider is configured in **Settings**. You can choose from OpenAI, Anthropic, Groq, or a local Ollama instance.
-
-Until then, I can suggest visiting the **Dashboard** for instant analytics or the **Ledger** to review your transactions.`,
-        timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-      };
-      addMessage(aiMsg);
-      setIsTyping(false);
-    }, 1500);
+    const statusMsg: MessageType = {
+      id: (Date.now() + 1).toString(),
+      role: 'assistant',
+      content:
+        'Your message was saved in this browser. The AI backend is unavailable, so GhostLedger did not analyze your financial data. Use the Dashboard or Ledger for current figures.',
+      timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+    };
+    addMessage(statusMsg);
   }
 
   function handleKeyDown(e: React.KeyboardEvent) {
@@ -67,11 +62,18 @@ Until then, I can suggest visiting the **Dashboard** for instant analytics or th
           </div>
           <div>
             <h1 className="text-lg font-semibold text-primary">Ghost AI</h1>
-            <p className="text-xs text-primary-fixed-dim/80 uppercase tracking-wider mt-0.5">System Ready</p>
+            <p className="text-xs text-error uppercase tracking-wider mt-0.5">
+              AI backend unavailable
+            </p>
           </div>
         </div>
         <div className="ml-auto flex items-center gap-4">
-          <button onClick={clearMessages} className="text-on-surface-variant hover:text-primary transition-colors" title="Clear chat">
+          <button
+            onClick={clearMessages}
+            aria-label="Clear local chat history"
+            className="text-on-surface-variant hover:text-primary transition-colors"
+            title="Clear chat"
+          >
             <History className="h-5 w-5" />
           </button>
         </div>
@@ -110,25 +112,14 @@ Until then, I can suggest visiting the **Dashboard** for instant analytics or th
               </div>
             </div>
             {msg.timestamp && (
-              <span className={`text-xs text-on-surface-variant mt-1.5 ${msg.role === 'user' ? 'mr-11' : 'ml-11'}`}>
+              <span
+                className={`text-xs text-on-surface-variant mt-1.5 ${msg.role === 'user' ? 'mr-11' : 'ml-11'}`}
+              >
                 {msg.timestamp}
               </span>
             )}
           </div>
         ))}
-
-        {isTyping && (
-          <div className="flex items-start gap-3">
-            <div className="w-8 h-8 rounded bg-primary-fixed-dim/10 border border-primary-fixed-dim flex-shrink-0 flex items-center justify-center animate-pulse">
-              <Bot className="h-4 w-4 text-primary-fixed-dim" />
-            </div>
-            <div className="bg-surface-container border border-outline-variant rounded rounded-tl-none px-4 py-3 flex items-center gap-1.5">
-              <span className="w-2 h-2 bg-on-surface-variant rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
-              <span className="w-2 h-2 bg-on-surface-variant rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
-              <span className="w-2 h-2 bg-on-surface-variant rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
-            </div>
-          </div>
-        )}
 
         <div ref={chatEndRef} />
       </div>
@@ -152,13 +143,15 @@ Until then, I can suggest visiting the **Dashboard** for instant analytics or th
               value={input}
               onChange={(e) => setInput(e.target.value)}
               onKeyDown={handleKeyDown}
+              aria-label="Save a local chat message"
               className="w-full bg-transparent border-none focus:ring-0 text-on-surface text-sm placeholder-on-surface-variant p-4 resize-none max-h-32"
-              placeholder="Query ledger data..."
+              placeholder="Save a local note or question; AI replies are unavailable"
               rows={1}
             />
             <div className="flex items-center gap-2 pr-3 pb-3 shrink-0">
               <button
                 onClick={() => handleSend()}
+                aria-label="Save local message"
                 disabled={!input.trim()}
                 className="w-10 h-10 bg-primary-fixed-dim hover:bg-primary-container text-on-primary flex items-center justify-center rounded transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               >
@@ -166,8 +159,9 @@ Until then, I can suggest visiting the **Dashboard** for instant analytics or th
               </button>
             </div>
           </div>
-          <p className="text-center text-xs text-outline tracking-wider">
-            AI responses may contain inaccuracies. Verify critical data.
+          <p role="note" className="text-center text-xs text-outline tracking-wider">
+            Messages stay in this browser. This release does not connect to an AI provider or
+            analyze finance data.
           </p>
         </div>
       </div>
@@ -181,13 +175,25 @@ function ChatContent({ content }: { content: string }) {
     <div className="prose space-y-2">
       {lines.map((line, i) => {
         if (line.startsWith('**') && line.endsWith('**')) {
-          return <strong key={i} className="block text-on-surface">{line.replace(/\*\*/g, '')}</strong>;
+          return (
+            <strong key={i} className="block text-on-surface">
+              {line.replace(/\*\*/g, '')}
+            </strong>
+          );
         }
         if (line.startsWith('*') && line.endsWith('*')) {
-          return <em key={i} className="block text-on-surface-variant">{line.replace(/\*/g, '')}</em>;
+          return (
+            <em key={i} className="block text-on-surface-variant">
+              {line.replace(/\*/g, '')}
+            </em>
+          );
         }
         if (line.trim() === '') return <br key={i} />;
-        return <p key={i} className="text-sm">{line}</p>;
+        return (
+          <p key={i} className="text-sm">
+            {line}
+          </p>
+        );
       })}
     </div>
   );
