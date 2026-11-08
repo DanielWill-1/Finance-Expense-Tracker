@@ -8,6 +8,7 @@ import settingsRouter from './settings';
 import importRouter from './imports';
 import rulesRouter from './rules';
 import dataOwnershipRouter from './dataOwnership';
+import assistantRouter from './assistant';
 
 const router = Router();
 
@@ -20,5 +21,6 @@ router.use('/settings', settingsRouter);
 router.use('/import', importRouter);
 router.use('/rules', rulesRouter);
 router.use('/data', dataOwnershipRouter);
+router.use('/assistant', assistantRouter);
 
 export default router;

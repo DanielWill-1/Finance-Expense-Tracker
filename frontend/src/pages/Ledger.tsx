@@ -1,10 +1,16 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useState, useMemo, useRef } from 'react';
-import { fetchTransactions, fetchCategories, deleteTransaction } from '../services/endpoints';
+import {
+  fetchTransactions,
+  fetchCategories,
+  fetchAccounts,
+  deleteTransaction,
+} from '../services/endpoints';
+import type { TransactionFilters } from '../services/endpoints';
 import { Card } from '../components/ui/Card';
 import { Pagination } from '../components/ui/Pagination';
 import { LoadingSpinner, ErrorState, EmptyState } from '../components/ui/States';
-import { Search, CloudUpload, Edit3, Trash2, Filter, AlertTriangle } from 'lucide-react';
+import { Search, CloudUpload, Edit3, Trash2, AlertTriangle } from 'lucide-react';
 import type { Transaction } from '../types/api';
 import { ImportModal } from '../components/ImportModal';
 import { ImportHistory } from '../components/ImportHistory';
@@ -17,6 +23,11 @@ export default function Ledger() {
   const [search, setSearch] = useState('');
   const [typeFilter, setTypeFilter] = useState('');
   const [categoryFilter, setCategoryFilter] = useState('');
+  const [accountFilter, setAccountFilter] = useState('');
+  const [startDate, setStartDate] = useState('');
+  const [endDate, setEndDate] = useState('');
+  const [sortBy, setSortBy] = useState('date');
+  const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
   const [page, setPage] = useState(1);
   const [editingTransaction, setEditingTransaction] = useState<Transaction | null>(null);
   const [showImport, setShowImport] = useState(false);
@@ -29,35 +40,50 @@ export default function Ledger() {
     queryKey: ['categories-all'],
     queryFn: () => fetchCategories(),
   });
+  const { data: accountsRes } = useQuery({ queryKey: ['accounts-all'], queryFn: fetchAccounts });
 
   const filters = useMemo(() => {
-    const f: Record<string, string | number> = {
-      page: String(page),
-      limit: String(PAGE_SIZE),
-      sortBy: 'date',
-      sortOrder: 'desc',
+    const f: TransactionFilters = {
+      page,
+      limit: PAGE_SIZE,
+      sortBy,
+      sortOrder,
     };
     if (search) f.search = search;
     if (typeFilter) f.type = typeFilter;
     if (categoryFilter) f.categoryId = Number(categoryFilter);
+    if (accountFilter) f.accountId = Number(accountFilter);
+    if (startDate) f.startDate = startDate;
+    if (endDate) f.endDate = endDate;
     return f;
-  }, [search, typeFilter, categoryFilter, page]);
+  }, [
+    search,
+    typeFilter,
+    categoryFilter,
+    accountFilter,
+    startDate,
+    endDate,
+    sortBy,
+    sortOrder,
+    page,
+  ]);
 
   const { data, isLoading, error, refetch } = useQuery({
     queryKey: ['transactions', filters],
-    queryFn: () =>
-      fetchTransactions(
-        filters as Record<string, string | number> & { page?: number; limit?: number },
-      ),
+    queryFn: () => fetchTransactions(filters),
   });
 
   const deleteMutation = useMutation({
     mutationFn: (id: number) => deleteTransaction(id),
-    onSuccess: () => invalidateFinanceQueries(queryClient),
+    onSuccess: async () => {
+      if (transactions.length === 1 && page > 1) setPage((current) => Math.max(1, current - 1));
+      await invalidateFinanceQueries(queryClient);
+    },
     onError: (error: Error) => setActionError(error.message || 'Could not delete transaction'),
   });
 
   const categories = categoriesRes?.data ?? [];
+  const accounts = accountsRes?.data ?? [];
   const transactions = data?.data ?? [];
   const pagination = data?.pagination;
 
@@ -110,54 +136,142 @@ export default function Ledger() {
       />
       <Card>
         <div className="p-6 pb-4 border-b border-outline-variant/50">
-          <div className="flex items-center justify-between flex-wrap gap-4">
+          <div className="flex flex-col gap-4">
             <h2 className="text-lg font-medium text-on-surface">Master Ledger</h2>
-            <div className="flex items-center gap-3">
-              <div className="relative">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-on-surface-variant" />
+            <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3">
+              <label className="relative text-xs text-on-surface-variant">
+                Search
+                <Search className="absolute left-2 top-8 h-4 w-4 text-on-surface-variant" />
                 <input
-                  type="text"
-                  placeholder="Search ledger..."
+                  type="search"
+                  aria-label="Search ledger"
+                  placeholder="Description or merchant"
                   value={search}
                   onChange={(e) => {
                     setSearch(e.target.value);
                     setPage(1);
                   }}
-                  className="w-full sm:w-64 bg-surface-container-low border border-outline-variant rounded py-1.5 pl-9 pr-4 font-mono text-sm text-on-surface placeholder:text-on-surface-variant/50 focus:outline-none focus:border-primary-fixed-dim transition-colors"
+                  className="mt-1 w-full bg-surface-container-low border border-outline-variant rounded py-2 pl-8 pr-3 font-mono text-sm text-on-surface placeholder:text-on-surface-variant/50 focus:outline-none focus:border-primary-fixed-dim"
                 />
-              </div>
-              <Filter className="h-4 w-4 text-on-surface-variant" />
-              <select
-                value={typeFilter}
-                onChange={(e) => {
-                  setTypeFilter(e.target.value);
-                  setPage(1);
-                }}
-                className="bg-surface-container-low border border-outline-variant text-on-surface font-mono text-sm py-1.5 pl-3 pr-8 rounded focus:outline-none focus:border-primary-fixed-dim cursor-pointer appearance-none"
-              >
-                <option value="">All Types</option>
-                <option value="income">Income</option>
-                <option value="expense">Expense</option>
-              </select>
-              <select
-                value={categoryFilter}
-                onChange={(e) => {
-                  setCategoryFilter(e.target.value);
-                  setPage(1);
-                }}
-                className="bg-surface-container-low border border-outline-variant text-on-surface font-mono text-sm py-1.5 pl-3 pr-8 rounded focus:outline-none focus:border-primary-fixed-dim cursor-pointer appearance-none"
-              >
-                <option value="">All Categories</option>
-                {categories.map((c) => (
-                  <option key={c.id} value={c.id}>
-                    {c.name}
-                  </option>
-                ))}
-              </select>
+              </label>
+              <label className="text-xs text-on-surface-variant">
+                Type
+                <select
+                  aria-label="Filter by transaction type"
+                  value={typeFilter}
+                  onChange={(e) => {
+                    setTypeFilter(e.target.value);
+                    setPage(1);
+                  }}
+                  className="mt-1 w-full bg-surface-container-low border border-outline-variant text-on-surface font-mono text-sm py-2 px-3 rounded focus:outline-none focus:border-primary-fixed-dim"
+                >
+                  <option value="">All types</option>
+                  <option value="income">Income</option>
+                  <option value="expense">Expense</option>
+                </select>
+              </label>
+              <label className="text-xs text-on-surface-variant">
+                Category
+                <select
+                  aria-label="Filter by category"
+                  value={categoryFilter}
+                  onChange={(e) => {
+                    setCategoryFilter(e.target.value);
+                    setPage(1);
+                  }}
+                  className="mt-1 w-full bg-surface-container-low border border-outline-variant text-on-surface font-mono text-sm py-2 px-3 rounded focus:outline-none focus:border-primary-fixed-dim"
+                >
+                  <option value="">All categories</option>
+                  {categories.map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.name}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label className="text-xs text-on-surface-variant">
+                Account
+                <select
+                  aria-label="Filter by account"
+                  value={accountFilter}
+                  onChange={(e) => {
+                    setAccountFilter(e.target.value);
+                    setPage(1);
+                  }}
+                  className="mt-1 w-full bg-surface-container-low border border-outline-variant text-on-surface font-mono text-sm py-2 px-3 rounded focus:outline-none focus:border-primary-fixed-dim"
+                >
+                  <option value="">All accounts</option>
+                  {accounts.map((account) => (
+                    <option key={account.id} value={account.id}>
+                      {account.name}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label className="text-xs text-on-surface-variant">
+                From date
+                <input
+                  aria-label="Filter start date"
+                  type="date"
+                  value={startDate}
+                  max={endDate || undefined}
+                  onChange={(event) => {
+                    setStartDate(event.target.value);
+                    setPage(1);
+                  }}
+                  className="mt-1 w-full bg-surface-container-low border border-outline-variant text-on-surface font-mono text-sm py-2 px-3 rounded focus:outline-none focus:border-primary-fixed-dim"
+                />
+              </label>
+              <label className="text-xs text-on-surface-variant">
+                Through date
+                <input
+                  aria-label="Filter end date"
+                  type="date"
+                  value={endDate}
+                  min={startDate || undefined}
+                  onChange={(event) => {
+                    setEndDate(event.target.value);
+                    setPage(1);
+                  }}
+                  className="mt-1 w-full bg-surface-container-low border border-outline-variant text-on-surface font-mono text-sm py-2 px-3 rounded focus:outline-none focus:border-primary-fixed-dim"
+                />
+              </label>
+              <label className="text-xs text-on-surface-variant">
+                Sort by
+                <select
+                  aria-label="Sort ledger by"
+                  value={sortBy}
+                  onChange={(event) => {
+                    setSortBy(event.target.value);
+                    setPage(1);
+                  }}
+                  className="mt-1 w-full bg-surface-container-low border border-outline-variant text-on-surface font-mono text-sm py-2 px-3 rounded focus:outline-none focus:border-primary-fixed-dim"
+                >
+                  <option value="date">Date</option>
+                  <option value="amount">Amount</option>
+                  <option value="description">Description</option>
+                  <option value="merchant">Merchant</option>
+                  <option value="type">Type</option>
+                </select>
+              </label>
+              <label className="text-xs text-on-surface-variant">
+                Order
+                <select
+                  aria-label="Sort order"
+                  value={sortOrder}
+                  onChange={(event) => {
+                    setSortOrder(event.target.value as 'asc' | 'desc');
+                    setPage(1);
+                  }}
+                  className="mt-1 w-full bg-surface-container-low border border-outline-variant text-on-surface font-mono text-sm py-2 px-3 rounded focus:outline-none focus:border-primary-fixed-dim"
+                >
+                  <option value="desc">Newest / highest first</option>
+                  <option value="asc">Oldest / lowest first</option>
+                </select>
+              </label>
             </div>
           </div>
         </div>
-
         {isLoading ? (
           <LoadingSpinner />
         ) : error ? (

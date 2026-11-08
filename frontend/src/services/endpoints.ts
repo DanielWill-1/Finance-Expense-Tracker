@@ -9,6 +9,9 @@ import type {
   MonthlyData,
   CategoryTotal,
   ImportBatch,
+  AssistantStatus,
+  AssistantCredentialStatus,
+  AssistantContextMetadata,
 } from '../types/api';
 
 export interface TransactionFilters {
@@ -162,9 +165,156 @@ export async function purgeDatabase() {
   return data;
 }
 
-export async function updateSettings(settings: Record<string, string>) {
+export async function updateSettings(settings: Record<string, string | boolean | null>) {
   const { data } = await apiClient.put<ApiResponse<Record<string, string>>>('/settings', settings);
   return data;
+}
+
+export async function fetchAssistantStatus() {
+  const { data } = await apiClient.get<ApiResponse<AssistantStatus>>('/assistant/status');
+  return data;
+}
+
+export async function testAssistantConnection() {
+  const { data } = await apiClient.post<ApiResponse<{ state: string; message: string }>>(
+    '/assistant/test',
+    {},
+  );
+  return data;
+}
+
+export async function fetchAssistantCredential(provider: 'openai' | 'anthropic' | 'groq') {
+  const { data } = await apiClient.get<ApiResponse<AssistantCredentialStatus>>(
+    `/assistant/credentials/${provider}`,
+  );
+  return data;
+}
+
+export async function saveAssistantCredential(input: {
+  provider: 'openai' | 'anthropic' | 'groq';
+  apiKey: string;
+}) {
+  const { data } = await apiClient.put<ApiResponse<AssistantCredentialStatus>>(
+    `/assistant/credentials/${input.provider}`,
+    { apiKey: input.apiKey },
+  );
+  return data;
+}
+
+export async function removeAssistantCredential(provider: 'openai' | 'anthropic' | 'groq') {
+  const { data } = await apiClient.delete<ApiResponse<AssistantCredentialStatus>>(
+    `/assistant/credentials/${provider}`,
+  );
+  return data;
+}
+
+export class AssistantStreamError extends Error {
+  constructor(
+    message: string,
+    public readonly code: string,
+  ) {
+    super(message);
+    this.name = 'AssistantStreamError';
+  }
+}
+
+export async function streamAssistantChat(
+  question: string,
+  history: { role: 'user' | 'assistant'; content: string }[],
+  signal: AbortSignal,
+  onMeta: (metadata: AssistantContextMetadata) => void,
+  onDelta: (delta: string) => void,
+) {
+  const response = await fetch('/api/assistant/chat', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Accept: 'text/event-stream' },
+    body: JSON.stringify({ question, history }),
+    signal,
+  });
+  if (!response.ok) {
+    let message = `Assistant request failed (${response.status}).`;
+    let code = 'AI_REQUEST_FAILED';
+    try {
+      const payload = (await response.json()) as ApiResponse;
+      if (payload.error?.message) message = payload.error.message;
+      if (payload.error?.code) code = payload.error.code;
+    } catch {
+      // Keep the bounded generic HTTP error when the response is not JSON.
+    }
+    throw new AssistantStreamError(message, code);
+  }
+  if (!response.body)
+    throw new AssistantStreamError('The assistant stream was unavailable.', 'AI_INVALID_RESPONSE');
+
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = '';
+  let eventName = '';
+  let dataLines: string[] = [];
+  let completed = false;
+  const dispatch = () => {
+    if (dataLines.length === 0) {
+      eventName = '';
+      return;
+    }
+    const event = eventName;
+    const data = dataLines.join('\n');
+    eventName = '';
+    dataLines = [];
+    let payload: Record<string, unknown>;
+    try {
+      payload = JSON.parse(data) as Record<string, unknown>;
+    } catch {
+      throw new AssistantStreamError(
+        'The assistant returned an invalid stream event.',
+        'AI_INVALID_RESPONSE',
+      );
+    }
+    if (event === 'meta') onMeta(payload as unknown as AssistantContextMetadata);
+    else if (event === 'delta' && typeof payload.text === 'string') onDelta(payload.text);
+    else if (event === 'done') completed = true;
+    else if (event === 'error')
+      throw new AssistantStreamError(
+        typeof payload.message === 'string' ? payload.message : 'The assistant request failed.',
+        typeof payload.code === 'string' ? payload.code : 'AI_PROVIDER_FAILED',
+      );
+  };
+  const consumeLine = (line: string) => {
+    if (!line) {
+      dispatch();
+      return;
+    }
+    if (line.startsWith(':')) return;
+    const separator = line.indexOf(':');
+    const field = separator < 0 ? line : line.slice(0, separator);
+    const value = separator < 0 ? '' : line.slice(separator + 1).replace(/^ /, '');
+    if (field === 'event') eventName = value;
+    if (field === 'data') dataLines.push(value);
+  };
+
+  try {
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      buffer += decoder.decode(value, { stream: true });
+      let newline = buffer.indexOf('\n');
+      while (newline >= 0) {
+        consumeLine(buffer.slice(0, newline).replace(/\r$/, ''));
+        buffer = buffer.slice(newline + 1);
+        newline = buffer.indexOf('\n');
+      }
+    }
+    buffer += decoder.decode();
+    if (buffer) consumeLine(buffer.replace(/\r$/, ''));
+    dispatch();
+  } finally {
+    reader.releaseLock();
+  }
+  if (!completed)
+    throw new AssistantStreamError(
+      'The assistant stream ended before completion.',
+      'AI_DISCONNECTED',
+    );
 }
 
 export async function fetchImportHistory(params?: {

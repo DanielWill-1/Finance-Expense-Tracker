@@ -29,14 +29,23 @@ function addOneMonthClamped(value: string): string | null {
 export class RecurringDetectionService {
   constructor(private transactionRepo: TransactionRepository) {}
 
-  detectSubscriptions(): RecurringTransaction[] {
+  detectSubscriptions(
+    accountId?: number,
+    startDate?: string,
+    endDate?: string,
+  ): RecurringTransaction[] {
     const transactions: ReturnType<TransactionRepository['findAll']>['data'] = [];
     const pageSize = 1000;
     let page = 1;
     let total = 0;
     do {
       const batch = this.transactionRepo.findAll(
-        { type: 'expense' },
+        {
+          type: 'expense',
+          ...(accountId ? { accountId } : {}),
+          ...(startDate ? { startDate } : {}),
+          ...(endDate ? { endDate } : {}),
+        },
         { page, limit: pageSize, offset: (page - 1) * pageSize },
         { sortBy: 'date', sortOrder: 'desc' },
       );

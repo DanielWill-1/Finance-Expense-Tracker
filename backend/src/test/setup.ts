@@ -1,9 +1,20 @@
 import { resolve } from 'path';
-import { existsSync, unlinkSync, mkdirSync } from 'fs';
+import { existsSync, unlinkSync, mkdirSync, mkdtempSync, rmSync } from 'fs';
 import Database from 'better-sqlite3';
 import { runMigrations } from '../database/migrations';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { afterAll } from 'vitest';
 
 const testDbDir = resolve(__dirname, '../../data');
+export const testCredentialDirectory = mkdtempSync(
+  join(tmpdir(), 'ghostledger-vitest-credentials-'),
+);
+process.env.GHOSTLEDGER_SECRET_DIR = testCredentialDirectory;
+
+afterAll(() => {
+  rmSync(testCredentialDirectory, { recursive: true, force: true });
+});
 
 export function setupTestDb(name: string): Database.Database {
   if (!/^[a-z0-9-]+$/i.test(name))

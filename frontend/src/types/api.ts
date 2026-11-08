@@ -109,3 +109,52 @@ export interface ImportBatch {
   parser_type: string;
   created_at: string;
 }
+
+export interface AssistantStatus {
+  state: 'disabled' | 'unconfigured' | 'untested' | 'ready' | 'unreachable' | 'failed';
+  provider: 'openai' | 'anthropic' | 'groq' | 'ollama';
+  model: string;
+  enabled: boolean;
+  mode: 'local' | 'cloud';
+  destination: string;
+  credentialConfigured: boolean;
+  credentialSource: 'settings' | 'environment' | 'not_required' | null;
+  cloudConsent: boolean;
+  serverReachable: boolean | null;
+  modelAvailable: boolean | null;
+  testedAt: string | null;
+  message: string;
+  errorCode?: string;
+}
+
+export interface AssistantCredentialStatus {
+  provider: 'openai' | 'anthropic' | 'groq';
+  configured: boolean;
+  source: 'settings' | 'environment' | null;
+}
+
+export interface AssistantContextMetadata {
+  period: string;
+  filters: string[];
+  currencies: string[];
+  cutoff: string;
+  truncated: boolean;
+  omittedReferenceRows: number;
+  truncationDetails: string[];
+  supportingTotals: {
+    currency: string;
+    income: number;
+    expenses: number;
+    netSavings: number;
+  }[];
+  categoryTotals: { name: string; currency: string; total: number }[];
+  transactionReferences: {
+    id: number;
+    date: string;
+    description: string;
+    merchant: string | null;
+    category: string;
+    amount: number;
+    currency: string;
+  }[];
+}

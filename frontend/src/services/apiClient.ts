@@ -1,4 +1,13 @@
 import axios from 'axios';
+import type { ApiResponse } from '../types/api';
+
+export function apiErrorMessage(error: unknown, fallback: string): string {
+  if (axios.isAxiosError<ApiResponse>(error)) {
+    const message = error.response?.data?.error?.message;
+    if (typeof message === 'string' && message.trim()) return message;
+  }
+  return error instanceof Error && error.message ? error.message : fallback;
+}
 
 export const apiClient = axios.create({
   baseURL: '/api',

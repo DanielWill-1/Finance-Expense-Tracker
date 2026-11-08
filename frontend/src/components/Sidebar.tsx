@@ -1,78 +1,76 @@
 import { NavLink } from 'react-router-dom';
-import { useQuery } from '@tanstack/react-query';
-import { fetchAnalyticsSummary } from '../services/endpoints';
-import { LayoutDashboard, Wallet, Bot, Settings, Plus } from 'lucide-react';
+import { useLocation } from 'react-router-dom';
+import { Bot, LayoutDashboard, Plus, Settings, Wallet } from 'lucide-react';
+import type { LucideIcon } from 'lucide-react';
 
 function Sidebar({ onAddTransaction }: { onAddTransaction: () => void }) {
-  const { data } = useQuery({
-    queryKey: ['analytics-summary'],
-    queryFn: () => fetchAnalyticsSummary(),
-    refetchInterval: 30_000,
-  });
-
-  const netWorthValue = data?.data?.netWorth;
-  const netWorth =
-    typeof netWorthValue === 'number' && Number.isFinite(netWorthValue)
-      ? formatCurrency(netWorthValue, data?.data?.netWorthByCurrency?.[0]?.currency ?? 'INR')
-      : (data?.data?.netWorthByCurrency ?? [])
-          .map((item) => `${item.currency} ${formatCurrency(item.amount, item.currency)}`)
-          .join(' · ') || '—';
-
-  function formatCurrency(n: number, currency = 'INR') {
-    try {
-      return new Intl.NumberFormat('en-IN', {
-        style: 'currency',
-        currency,
-        maximumFractionDigits: 2,
-      }).format(n);
-    } catch {
-      return `${currency} ${n.toFixed(2)}`;
-    }
-  }
+  const location = useLocation();
+  const isDashboard = location.pathname === '/';
 
   return (
-    <aside className="w-14 md:w-64 h-screen fixed left-0 top-0 border-r border-outline-variant bg-surface-container-low z-20 flex flex-col py-4">
-      <div className="px-1 md:px-4 mb-6">
-        <h1 className="hidden md:block text-xl font-bold text-on-surface tracking-tight mb-4">
-          GhostLedger
-        </h1>
-        <span className="md:hidden mb-3 block text-center font-bold text-primary-fixed-dim">
-          GL
-        </span>
-        <div className="hidden md:flex p-3 border border-outline-variant rounded-lg bg-surface items-center gap-3">
-          <div className="w-10 h-10 rounded-full bg-surface-bright border border-outline-variant flex items-center justify-center text-primary-fixed-dim font-mono font-bold text-xs">
-            GL
+    <>
+      <aside className="fixed inset-y-0 left-0 z-40 hidden w-[72px] flex-col border-r border-outline-variant bg-white px-3 py-6 md:flex lg:w-[232px] lg:px-5">
+        <div className="flex items-center gap-3 px-1">
+          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-primary-container text-primary-fixed-dim">
+            <Wallet aria-hidden="true" className="h-5 w-5" strokeWidth={1.8} />
           </div>
-          <div>
-            <p className="font-mono text-sm text-on-surface">{netWorth}</p>
-            <p className="text-xs text-on-surface-variant uppercase tracking-wider mt-0.5">
-              Net Worth
+          <div className="hidden min-w-0 lg:block">
+            <p className="truncate text-base font-semibold tracking-[-0.02em] text-on-surface">
+              GhostLedger
             </p>
+            <p className="mt-0.5 text-xs text-on-surface-variant">Personal finance</p>
           </div>
         </div>
-        <button
-          onClick={onAddTransaction}
-          aria-label="Add transaction"
-          className="mt-2 md:mt-4 w-full bg-primary-fixed-dim text-on-primary font-mono text-sm font-medium py-2 md:px-4 rounded flex items-center justify-center gap-1 md:gap-2 hover:bg-primary-fixed transition-colors min-h-10"
-        >
-          <Plus className="h-4 w-4" />
-          <span className="hidden md:inline">Add Transaction</span>
-        </button>
-      </div>
 
-      <nav className="flex-1 space-y-0.5 px-1 md:px-4">
-        <SidebarLink to="/" icon={LayoutDashboard} label="Dashboard" />
-        <SidebarLink to="/ledger" icon={Wallet} label="Ledger" />
-        <SidebarLink to="/assistant" icon={Bot} label="AI Assistant" />
-        <SidebarLink to="/settings" icon={Settings} label="Settings" />
+        <nav aria-label="Primary navigation" className="mt-10 flex-1 space-y-1">
+          <SidebarLink to="/" icon={LayoutDashboard} label="Dashboard" />
+          <SidebarLink to="/ledger" icon={Wallet} label="Ledger" />
+          <SidebarLink to="/assistant" icon={Bot} label="AI Assistant" />
+          <SidebarLink to="/settings" icon={Settings} label="Settings" />
+        </nav>
+
+        <div className="mt-auto space-y-4 border-t border-outline-variant pt-5">
+          {!isDashboard && (
+            <button
+              type="button"
+              onClick={onAddTransaction}
+              aria-label="Add transaction"
+              title="Add transaction"
+              className="flex min-h-11 w-full items-center justify-center gap-2 rounded-lg bg-primary-fixed-dim px-3 text-sm font-medium text-on-primary transition-colors hover:bg-primary-fixed focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-fixed-dim focus-visible:ring-offset-2 lg:justify-start"
+            >
+              <Plus aria-hidden="true" className="h-4 w-4 shrink-0" />
+              <span className="hidden lg:inline">Add Transaction</span>
+            </button>
+          )}
+          <p className="hidden text-xs leading-5 text-on-surface-variant lg:block">
+            Local-first · no sign-in
+          </p>
+        </div>
+      </aside>
+
+      <nav
+        aria-label="Primary navigation"
+        className={`fixed inset-x-0 bottom-0 z-40 grid min-h-16 border-t border-outline-variant bg-white px-1 pb-[env(safe-area-inset-bottom)] shadow-[0_-4px_16px_rgba(15,23,42,0.04)] md:hidden ${
+          isDashboard ? 'grid-cols-4' : 'grid-cols-[repeat(4,minmax(0,1fr))_3.5rem]'
+        }`}
+      >
+        <MobileSidebarLink to="/" icon={LayoutDashboard} label="Dashboard" />
+        <MobileSidebarLink to="/ledger" icon={Wallet} label="Ledger" />
+        <MobileSidebarLink to="/assistant" icon={Bot} label="AI Assistant" />
+        <MobileSidebarLink to="/settings" icon={Settings} label="Settings" />
+        {!isDashboard && (
+          <button
+            type="button"
+            onClick={onAddTransaction}
+            aria-label="Add transaction"
+            title="Add transaction"
+            className="my-2 mr-1 flex min-h-11 items-center justify-center rounded-xl bg-primary-fixed-dim text-on-primary transition-colors hover:bg-primary-fixed focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-fixed-dim focus-visible:ring-offset-2"
+          >
+            <Plus aria-hidden="true" className="h-5 w-5" />
+          </button>
+        )}
       </nav>
-
-      <div className="mt-auto pt-4 border-t border-outline-variant px-1 md:px-4">
-        <p className="hidden md:block pl-4 py-2 text-xs text-on-surface-variant">
-          Local-only · no sign-in
-        </p>
-      </div>
-    </aside>
+    </>
   );
 }
 
@@ -82,7 +80,36 @@ function SidebarLink({
   label,
 }: {
   to: string;
-  icon: React.ComponentType<{ className?: string }>;
+  icon: LucideIcon;
+  label: string;
+}) {
+  return (
+    <NavLink
+      to={to}
+      end={to === '/'}
+      aria-label={label}
+      title={label}
+      className={({ isActive }) =>
+        `flex min-h-11 items-center justify-center gap-3 rounded-lg border-l-2 px-0 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-fixed-dim focus-visible:ring-offset-2 lg:justify-start lg:px-3 ${
+          isActive
+            ? 'border-primary-fixed-dim bg-primary-fixed-dim/10 font-semibold text-primary-fixed-dim'
+            : 'border-transparent text-on-surface-variant hover:bg-surface-container-low hover:text-on-surface'
+        }`
+      }
+    >
+      <Icon aria-hidden="true" className="h-[18px] w-[18px] shrink-0" strokeWidth={1.8} />
+      <span className="hidden lg:inline">{label}</span>
+    </NavLink>
+  );
+}
+
+function MobileSidebarLink({
+  to,
+  icon: Icon,
+  label,
+}: {
+  to: string;
+  icon: LucideIcon;
   label: string;
 }) {
   return (
@@ -91,15 +118,13 @@ function SidebarLink({
       end={to === '/'}
       aria-label={label}
       className={({ isActive }) =>
-        `flex items-center justify-center md:justify-start gap-3 px-0 md:pl-4 py-2 rounded font-medium text-sm transition-colors ${
-          isActive
-            ? 'text-primary-fixed-dim font-bold border-l-2 border-primary-fixed-dim bg-surface-container-high/50'
-            : 'text-on-surface-variant hover:text-on-surface hover:bg-surface-container-high'
+        `mx-0.5 my-1 flex min-w-0 flex-col items-center justify-center gap-1 rounded-lg text-[10px] font-medium leading-none transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-fixed-dim ${
+          isActive ? 'bg-primary-fixed-dim/10 text-primary-fixed-dim' : 'text-on-surface-variant hover:bg-surface-container-low'
         }`
       }
     >
-      <Icon className="h-5 w-5 shrink-0" />
-      <span className="hidden md:inline">{label}</span>
+      <Icon aria-hidden="true" className="h-[18px] w-[18px]" strokeWidth={1.8} />
+      <span className="truncate">{label}</span>
     </NavLink>
   );
 }

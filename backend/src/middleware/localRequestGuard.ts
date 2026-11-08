@@ -33,8 +33,12 @@ export function localRequestGuard(req: Request, res: Response, next: NextFunctio
   }
 
   const sameHost = originAuthority === (req.get('host') || '').toLowerCase();
+  const originPort = new URL(req.headers.origin).port;
+  const allowedDevelopmentPorts = new Set(['5173']);
+  if (env.NODE_ENV === 'test' && process.env.GHOSTLEDGER_E2E_FRONTEND_PORT)
+    allowedDevelopmentPorts.add(process.env.GHOSTLEDGER_E2E_FRONTEND_PORT);
   const localDevelopmentOrigin =
-    LOCAL_HOSTS.has(originHost) && new URL(req.headers.origin).port === '5173';
+    LOCAL_HOSTS.has(originHost) && allowedDevelopmentPorts.has(originPort);
   if (!sameHost && !localDevelopmentOrigin) {
     res.status(403).json({
       success: false,

@@ -28,7 +28,9 @@ Avoid adding dependencies for features that are not used. The current project do
 
 ## Product scope
 
-AI analysis is unavailable. Do not imply that selecting a provider or entering configuration enables an AI backend. Keep chat history local and resilient to malformed browser storage.
+The optional AI assistant supports OpenAI, Anthropic, Groq, and local Ollama. Keep it disabled by default; a cloud provider requires provider-specific opt-in and a successful recent connection test. Cloud credentials can be entered in Settings and stored in a separate user-private backend file, or supplied through backend process environment variables. Never put keys in SQLite, browser storage, chat history, generic settings, backups, logs, or source control. Keep fixed cloud destinations, local-only Ollama host validation, bounded read-only context, and bounded streaming output. A mocked adapter or fake-provider browser test does not count as a live-provider verification.
+
+Account balance/name/type editing, category renaming, and ledger account/date filters and sort controls are supported product workflows. Account currency cannot change after transactions use it. Category rename must preserve transaction and rule links; reject category type changes when linked records would change meaning. `theme`, `language`, and `currency` are not active application preferences; preserve legacy values unless an explicit migration or privacy requirement removes them.
 
 Current supported import formats are HDFC, Chase, and the documented generic CSV layout. Do not claim support for other banks without synthetic format fixtures and parser verification. Bulk ledger actions, expanded rule actions, and user confirmation of recurring suggestions remain future work.
 
@@ -53,4 +55,4 @@ npm run test:e2e
 
 Backend tests use Vitest and Supertest. The browser suite uses an isolated database and synthetic data. The Docker Compose syntax check is `docker compose config --quiet`; live image and persistence checks require a running Docker Engine.
 
-Report what changed and which checks passed. State any environment mismatch, unavailable infrastructure, or unverified behavior instead of calling it complete. Do not wait for further approval when the user has already requested the implementation and no required decision is missing.
+Report what changed and which checks passed. Keep implemented, locally verified, live-provider verified, environment-deferred, and roadmap status distinct. State any environment mismatch, unavailable infrastructure, or unverified behavior instead of calling it complete. Do not wait for further approval when the user has already requested the implementation and no required decision is missing.

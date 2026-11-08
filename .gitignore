@@ -70,6 +70,9 @@ temp/
 *.backup
 *.bak
 backups/
+secrets/
+**/provider-credentials.json
+**/.secrets/
 backend/uploads/
 .commandcode/taste/taste.md
 prompt.md
@@ -80,3 +83,5 @@ playwright-report/
 test-results/
 /.codex
 /.gemini
+/.impeccable
+/frontend/.impeccable

@@ -20,8 +20,8 @@ RUN npm ci --omit=dev --workspace=backend --include-workspace-root=false
 FROM node:22-alpine AS runtime
 WORKDIR /app
 RUN apk add --no-cache libstdc++ \
-  && mkdir -p /app/data \
-  && chown -R node:node /app/data
+  && mkdir -p /app/data /app/secrets \
+  && chown -R node:node /app/data /app/secrets
 COPY --from=production-dependencies /app/node_modules ./node_modules
 COPY backend/package.json ./backend/package.json
 COPY --from=build /app/backend/dist ./backend/dist
@@ -30,6 +30,7 @@ ENV NODE_ENV=production \
   HOST=0.0.0.0 \
   PORT=3001 \
   DATABASE_URL=/app/data/ghostledger.db \
+  GHOSTLEDGER_SECRET_DIR=/app/secrets \
   ALLOW_REMOTE=false
 EXPOSE 3001
 HEALTHCHECK --interval=30s --timeout=5s --start-period=15s --retries=3 \

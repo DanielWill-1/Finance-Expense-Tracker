@@ -2,14 +2,33 @@
 @tailwind components;
 @tailwind utilities;
 
+:root {
+  color-scheme: light;
+  --gl-background: #f8fafc;
+  --gl-surface: #ffffff;
+  --gl-text: #1e293b;
+  --gl-muted: #64748b;
+  --gl-border: #e2e8f0;
+  --gl-accent: #0f766e;
+  --gl-expense: #b4534b;
+  --gl-accent-soft: #e5f3f0;
+}
+
 @layer base {
   * {
-    border-color: #3a4a43;
+    border-color: var(--gl-border);
+  }
+
+  html {
+    min-width: 320px;
+    background: var(--gl-background);
   }
 
   body {
-    background-color: #051424;
-    color: #d4e4fa;
+    min-width: 320px;
+    min-height: 100vh;
+    background-color: var(--gl-background);
+    color: var(--gl-text);
     font-family:
       Inter,
       ui-sans-serif,
@@ -18,6 +37,17 @@
       BlinkMacSystemFont,
       'Segoe UI',
       sans-serif;
+    line-height: 1.5;
+  }
+
+  ::selection {
+    color: #134e4a;
+    background: var(--gl-accent-soft);
+  }
+
+  :focus-visible {
+    outline: 2px solid var(--gl-accent);
+    outline-offset: 2px;
   }
 
   ::-webkit-scrollbar {
@@ -30,17 +60,28 @@
   }
 
   ::-webkit-scrollbar-thumb {
-    background: #262626;
-    border-radius: 4px;
+    background: #cbd5e1;
+    border-radius: 999px;
   }
 
   ::-webkit-scrollbar-thumb:hover {
-    background: #3a4a43;
+    background: #94a3b8;
   }
 }
 
 @layer utilities {
   .tabular-nums {
     font-variant-numeric: tabular-nums;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
   }
 }

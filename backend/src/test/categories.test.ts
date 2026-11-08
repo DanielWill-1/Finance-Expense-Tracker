@@ -53,6 +53,34 @@ describe('Category CRUD', () => {
     expect(res.body.data.name).toBe('Updated Category');
   });
 
+  it('renames linked categories without moving history or rules and blocks a linked type change', async () => {
+    const now = new Date().toISOString();
+    testDb
+      .prepare(
+        'INSERT INTO transactions (amount, date, description, category_id, type, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)',
+      )
+      .run(12.5, '2026-11-05', 'Category history', categoryId, 'expense', now, now);
+    testDb
+      .prepare(
+        'INSERT INTO rules (priority, contains_text, category_id, enabled, created_at) VALUES (?, ?, ?, ?, ?)',
+      )
+      .run(10, 'Category history', categoryId, 1, now);
+
+    const changedType = await request(app)
+      .put(`/api/categories/${categoryId}`)
+      .send({ type: 'income' });
+    expect(changedType.status).toBe(409);
+
+    const renamed = await request(app)
+      .put(`/api/categories/${categoryId}`)
+      .send({ name: 'Renamed Category' });
+    const history = await request(app).get('/api/transactions?search=Category%20history');
+    const rules = await request(app).get('/api/rules');
+    expect(renamed.status).toBe(200);
+    expect(history.body.data[0].category_name).toBe('Renamed Category');
+    expect(rules.body.data[0].category_id).toBe(categoryId);
+  });
+
   it('DELETE /api/categories/:id deletes a category', async () => {
     const res = await request(app).delete(`/api/categories/${categoryId}`);
     expect(res.status).toBe(204);

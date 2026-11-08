@@ -57,7 +57,9 @@ export const transactionFilterSchema = z
     search: z.string().trim().max(200).optional(),
     page: z.coerce.number().int().min(1).max(1_000_000).optional(),
     limit: z.coerce.number().int().min(1).max(200).optional(),
-    sortBy: z.string().optional(),
+    sortBy: z
+      .enum(['id', 'amount', 'date', 'description', 'merchant', 'type', 'created_at'])
+      .optional(),
     sortOrder: z.enum(['asc', 'desc']).optional(),
   })
   .strict()

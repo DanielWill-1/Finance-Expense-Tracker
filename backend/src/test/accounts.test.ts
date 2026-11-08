@@ -44,8 +44,14 @@ describe('Account CRUD', () => {
   });
 
   it('PUT /api/accounts/:id updates an account', async () => {
-    const res = await request(app).put(`/api/accounts/${accountId}`).send({ balance: 2000 });
+    const res = await request(app).put(`/api/accounts/${accountId}`).send({
+      name: 'Updated Test Account',
+      type: 'wallet',
+      balance: 2000,
+    });
     expect(res.status).toBe(200);
+    expect(res.body.data.name).toBe('Updated Test Account');
+    expect(res.body.data.type).toBe('wallet');
     expect(res.body.data.balance).toBe(2000);
   });
 

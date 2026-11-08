@@ -104,7 +104,7 @@ export class TransactionRepository {
          LEFT JOIN categories c ON t.category_id = c.id
          LEFT JOIN accounts a ON t.account_id = a.id
          ${where}
-         ORDER BY t.${sortBy} ${sortOrder}
+         ORDER BY t.${sortBy} ${sortOrder}${sortBy === 'id' ? '' : ', t.id ASC'}
          LIMIT ? OFFSET ?`,
       )
       .all(...bindings, limit, offset) as TransactionRow[];

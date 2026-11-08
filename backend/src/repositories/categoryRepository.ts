@@ -1,6 +1,7 @@
 import { sqlite } from '../database/connection';
 import type { CreateCategoryInput, UpdateCategoryInput } from '../validators/category';
 import type { PaginationParams, SortParams } from '../utils/pagination';
+import { ConflictError } from '../utils/errors';
 
 export interface CategoryRow {
   id: number;
@@ -79,6 +80,20 @@ export class CategoryRepository {
   update(id: number, input: UpdateCategoryInput): CategoryRow | undefined {
     const existing = this.findById(id);
     if (!existing) return undefined;
+
+    if (input.type !== undefined && input.type !== existing.type) {
+      const { transactionCount } = sqlite
+        .prepare('SELECT COUNT(*) as transactionCount FROM transactions WHERE category_id = ?')
+        .get(id) as { transactionCount: number };
+      const { ruleCount } = sqlite
+        .prepare('SELECT COUNT(*) as ruleCount FROM rules WHERE category_id = ?')
+        .get(id) as { ruleCount: number };
+      if (transactionCount > 0 || ruleCount > 0) {
+        throw new ConflictError(
+          'Category type cannot change while transactions or rules use it. Rename the category or create a new one to preserve their meaning.',
+        );
+      }
+    }
 
     const now = new Date().toISOString();
     const updates: string[] = [];

@@ -88,6 +88,24 @@ describe('Transaction CRUD', () => {
     expect(res.body.data.amount).toBe(750);
   });
 
+  it('filters by account and date range and orders tied values stably', async () => {
+    const second = await request(app).post('/api/transactions').send({
+      amount: 750,
+      date: '2026-01-15',
+      description: 'Second tied transaction',
+      accountId,
+      type: 'expense',
+    });
+    expect(second.status).toBe(201);
+    const res = await request(app).get(
+      `/api/transactions?accountId=${accountId}&startDate=2026-01-15&endDate=2026-01-15&sortBy=date&sortOrder=desc`,
+    );
+    expect(res.status).toBe(200);
+    expect(res.body.data.map((row: { id: number }) => row.id)).toEqual([txId, second.body.data.id]);
+    const unsupportedSort = await request(app).get('/api/transactions?sortBy=account_currency');
+    expect(unsupportedSort.status).toBe(400);
+  });
+
   it('DELETE /api/transactions/:id deletes a transaction', async () => {
     const res = await request(app).delete(`/api/transactions/${txId}`);
     expect(res.status).toBe(204);

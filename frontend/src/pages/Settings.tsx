@@ -7,13 +7,19 @@ import {
   deleteCategory,
   deleteRule,
   fetchAccounts,
+  fetchAssistantCredential,
   fetchCategories,
   fetchHealth,
   fetchRules,
   fetchSettings,
+  fetchAssistantStatus,
+  removeAssistantCredential,
+  saveAssistantCredential,
   purgeDatabase,
   restoreDatabaseBackup,
+  testAssistantConnection,
   updateAccount,
+  updateCategory,
   updateRule,
   updateSettings,
 } from '../services/endpoints';
@@ -31,8 +37,11 @@ import {
   Save,
   Download,
   Upload,
+  Pencil,
+  X,
 } from 'lucide-react';
 import { invalidateFinanceQueries } from '../services/queryInvalidation';
+import { apiErrorMessage } from '../services/apiClient';
 import type { Account } from '../types/api';
 
 type RuleRow = {
@@ -54,7 +63,7 @@ export default function Settings() {
         <h1 className="text-xl font-semibold text-on-surface">Settings</h1>
         <span
           aria-label="Settings are stored locally"
-          title="Local settings are stored in this database"
+          title="Preferences are stored locally; AI keys use a separate private file"
           className="text-on-surface-variant"
         >
           <HelpCircle className="h-5 w-5" />
@@ -78,82 +87,360 @@ export default function Settings() {
 
 function ProviderPreferences() {
   const queryClient = useQueryClient();
-  const query = useQuery({ queryKey: ['settings'], queryFn: fetchSettings });
-  const [provider, setProvider] = useState('openai');
-  const [endpoint, setEndpoint] = useState('https://api.openai.com/v1');
+  const [provider, setProvider] = useState<'openai' | 'anthropic' | 'groq' | 'ollama'>('openai');
   const [model, setModel] = useState('');
+  const [enabled, setEnabled] = useState(false);
+  const [cloudConsent, setCloudConsent] = useState(false);
+  const [apiKey, setApiKey] = useState('');
+  const [credentialMessage, setCredentialMessage] = useState('');
   const [message, setMessage] = useState('');
+  const [testMessage, setTestMessage] = useState('');
+  const query = useQuery({ queryKey: ['settings'], queryFn: fetchSettings });
+  const statusQuery = useQuery({
+    queryKey: ['assistant-status'],
+    queryFn: fetchAssistantStatus,
+    refetchInterval: 30_000,
+  });
+  const credentialQuery = useQuery({
+    queryKey: ['assistant-credential', provider],
+    queryFn: () => fetchAssistantCredential(provider === 'ollama' ? 'openai' : provider),
+    enabled: provider !== 'ollama',
+  });
   const mutation = useMutation({
     mutationFn: updateSettings,
-    onSuccess: () => {
-      setMessage('Preferences saved. The AI backend is still unavailable.');
+    onSuccess: async () => {
+      setMessage('Preferences saved. Saving does not test provider availability.');
       queryClient.invalidateQueries({ queryKey: ['settings'] });
+      await queryClient.invalidateQueries({ queryKey: ['assistant-status'] });
     },
     onError: (error: Error) => setMessage(error.message || 'Could not save preferences'),
+  });
+  const testMutation = useMutation({
+    mutationFn: testAssistantConnection,
+    onSuccess: async (response) => {
+      setTestMessage(response.data?.message ?? 'Connection test passed. No ledger data was sent.');
+      await queryClient.invalidateQueries({ queryKey: ['assistant-status'] });
+    },
+    onError: async (error: Error) => {
+      setTestMessage(apiErrorMessage(error, 'Connection test failed'));
+      await queryClient.invalidateQueries({ queryKey: ['assistant-status'] });
+    },
+  });
+  const saveCredentialMutation = useMutation({
+    mutationFn: saveAssistantCredential,
+    onSuccess: async (response) => {
+      setApiKey('');
+      setCredentialMessage('API key saved. It cannot be viewed after saving.');
+      await Promise.all([
+        queryClient.invalidateQueries({
+          queryKey: ['assistant-credential', response.data?.provider ?? provider],
+        }),
+        queryClient.invalidateQueries({ queryKey: ['assistant-status'] }),
+      ]);
+    },
+    onError: (error: Error) => setCredentialMessage(error.message || 'Could not save the API key'),
+  });
+  const removeCredentialMutation = useMutation({
+    mutationFn: removeAssistantCredential,
+    onSuccess: async (response) => {
+      setCredentialMessage(
+        response.data?.source === 'environment'
+          ? 'Saved key removed. The server environment key is still active.'
+          : 'Saved API key removed.',
+      );
+      const credentialProvider = response.data?.provider ?? provider;
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ['assistant-credential', credentialProvider] }),
+        queryClient.invalidateQueries({ queryKey: ['assistant-status'] }),
+      ]);
+    },
+    onError: (error: Error) =>
+      setCredentialMessage(error.message || 'Could not remove the saved API key'),
   });
 
   useEffect(() => {
     const current = query.data?.data;
     if (!current) return;
-    setProvider(current.ai_provider || 'openai');
-    setEndpoint(current.ai_endpoint || 'https://api.openai.com/v1');
+    const currentProvider = current.ai_provider;
+    setProvider(
+      currentProvider === 'anthropic' || currentProvider === 'groq' || currentProvider === 'ollama'
+        ? currentProvider
+        : 'openai',
+    );
     setModel(current.ai_model || '');
+    setEnabled(current.ai_enabled === 'true');
+    setCloudConsent(current.ai_cloud_consent_provider === (current.ai_provider || 'openai'));
   }, [query.data]);
 
   if (query.isLoading) return <LoadingSpinner />;
   if (query.error)
     return <ErrorState message="Failed to load settings" onRetry={() => query.refetch()} />;
 
+  const saved = query.data?.data ?? {};
+  const savedProvider = saved.ai_provider || 'openai';
+  const savedConsent = saved.ai_cloud_consent_provider === provider;
+  const needsSave =
+    provider !== savedProvider ||
+    model !== (saved.ai_model || '') ||
+    enabled !== (saved.ai_enabled === 'true') ||
+    cloudConsent !== savedConsent;
+  const destinationByProvider: Record<string, string> = {
+    openai: 'https://api.openai.com',
+    anthropic: 'https://api.anthropic.com',
+    groq: 'https://api.groq.com',
+    ollama: 'http://127.0.0.1:11434',
+  };
+  const configuredStatus = statusQuery.data?.data;
+  const activeStatus =
+    configuredStatus?.provider === provider &&
+    configuredStatus.model === model &&
+    configuredStatus.enabled === enabled &&
+    configuredStatus.cloudConsent === (provider === 'ollama' || cloudConsent)
+      ? configuredStatus
+      : undefined;
+  const displayedDestination = activeStatus?.destination ?? destinationByProvider[provider];
+  const credentialSource = credentialQuery.data?.data?.source ?? null;
+
   return (
     <Card>
       <CardBody>
-        <h2 className="text-base font-medium text-on-surface">AI provider preferences</h2>
+        <h2 className="text-base font-medium text-on-surface">AI assistant</h2>
         <p className="mt-1 text-sm text-on-surface-variant">
-          The AI backend is not implemented. These preferences do not enable AI or send data
-          anywhere.
+          AI is optional and disabled by default. Add a provider key here, choose its model, save
+          your preferences, and test the connection before starting a chat.
         </p>
         <div className="mt-5 grid grid-cols-1 md:grid-cols-2 gap-4">
           <label className="text-xs text-on-surface-variant">
-            Provider
-            <Select value={provider} onChange={(event) => setProvider(event.target.value)}>
+            Provider and destination
+            <Select
+              value={provider}
+              disabled={saveCredentialMutation.isPending || removeCredentialMutation.isPending}
+              onChange={(event) => {
+                setProvider(event.target.value as typeof provider);
+                setApiKey('');
+                setCredentialMessage('');
+                setCloudConsent(false);
+                setTestMessage('Provider changed. Save and test the new destination.');
+              }}
+            >
               <option value="openai">OpenAI</option>
               <option value="anthropic">Anthropic</option>
               <option value="groq">Groq</option>
               <option value="ollama">Ollama (local)</option>
             </Select>
+            <span className="mt-1 block font-mono text-[11px]">{displayedDestination}</span>
           </label>
           <label className="text-xs text-on-surface-variant">
-            Model
+            Model identifier
             <Input
               value={model}
               onChange={(event) => setModel(event.target.value)}
               maxLength={100}
-              placeholder="Optional"
-            />
-          </label>
-          <label className="md:col-span-2 text-xs text-on-surface-variant">
-            Endpoint URL
-            <Input
-              value={endpoint}
-              onChange={(event) => setEndpoint(event.target.value)}
-              maxLength={300}
+              placeholder="Enter a model available to this provider"
+              required
             />
           </label>
         </div>
-        <div className="mt-4 flex items-center justify-between gap-3">
-          <p role="status" className="text-sm text-on-surface-variant">
-            {message}
-          </p>
-          <Button
-            size="sm"
-            onClick={() => {
-              setMessage('');
-              mutation.mutate({ ai_provider: provider, ai_model: model, ai_endpoint: endpoint });
-            }}
-            loading={mutation.isPending}
-          >
-            <Save className="h-4 w-4" /> Save preferences
-          </Button>
+        <div className="mt-4 space-y-3">
+          <label className="flex items-start gap-2 text-sm text-on-surface">
+            <input
+              type="checkbox"
+              checked={enabled}
+              onChange={(event) => setEnabled(event.target.checked)}
+              className="mt-1 accent-primary-fixed-dim"
+            />
+            Enable AI analysis. Nothing is sent until you submit a question.
+          </label>
+          {provider !== 'ollama' && (
+            <label className="flex items-start gap-2 text-sm text-on-surface">
+              <input
+                type="checkbox"
+                checked={cloudConsent}
+                onChange={(event) => setCloudConsent(event.target.checked)}
+                className="mt-1 accent-primary-fixed-dim"
+              />
+              <span>
+                I consent to send my question, up to six recent chat messages, and the selected
+                cloud provider minimum ledger context when I ask a question. Context may include
+                dates, descriptions, merchants, categories, amounts, currencies, aggregate totals,
+                and limited transaction references. Notes, database files, credentials, and
+                unrelated records are excluded. I can withdraw consent here.
+              </span>
+            </label>
+          )}
+          {provider !== 'ollama' ? (
+            <div className="rounded border border-outline-variant bg-surface-container-low p-4 space-y-3">
+              <div>
+                <h3 className="text-sm font-medium text-on-surface">Provider API key</h3>
+                <p className="mt-1 text-xs text-on-surface-variant">
+                  Paste your{' '}
+                  {provider === 'openai'
+                    ? 'OpenAI'
+                    : provider === 'anthropic'
+                      ? 'Anthropic'
+                      : 'Groq'}{' '}
+                  API key here. It is stored in a private backend file, separate from your finance
+                  database and backups. The key is never shown again after saving; paste a new key
+                  to replace it.
+                </p>
+              </div>
+              <label className="block text-xs text-on-surface-variant" htmlFor="assistant-api-key">
+                {provider === 'openai' ? 'OpenAI' : provider === 'anthropic' ? 'Anthropic' : 'Groq'}{' '}
+                API key
+                <Input
+                  id="assistant-api-key"
+                  type="password"
+                  autoComplete="new-password"
+                  spellCheck={false}
+                  disabled={saveCredentialMutation.isPending || removeCredentialMutation.isPending}
+                  value={apiKey}
+                  onChange={(event) => setApiKey(event.target.value)}
+                  maxLength={500}
+                  placeholder={
+                    credentialSource === 'settings'
+                      ? 'Enter a replacement key'
+                      : 'Paste your API key'
+                  }
+                  className="mt-1"
+                />
+              </label>
+              <p className="text-xs text-on-surface-variant" role="status">
+                {credentialQuery.isLoading
+                  ? 'Checking key status…'
+                  : credentialQuery.error
+                    ? 'Key status is temporarily unavailable.'
+                    : credentialSource === 'settings'
+                      ? 'A key is saved in this app’s private credential file.'
+                      : credentialSource === 'environment'
+                        ? 'A server environment key is active. Saving here will take priority.'
+                        : 'No API key is configured for this provider yet.'}
+              </p>
+              {credentialQuery.error && (
+                <p className="text-xs text-error" role="alert">
+                  Could not check the saved key status.
+                </p>
+              )}
+              <div className="flex flex-wrap items-center gap-2">
+                <Button
+                  size="sm"
+                  disabled={
+                    !apiKey.trim() ||
+                    credentialQuery.isLoading ||
+                    saveCredentialMutation.isPending ||
+                    removeCredentialMutation.isPending
+                  }
+                  loading={saveCredentialMutation.isPending}
+                  onClick={() => {
+                    setCredentialMessage('');
+                    saveCredentialMutation.mutate({ provider, apiKey: apiKey.trim() });
+                  }}
+                >
+                  <Save className="h-4 w-4" />
+                  {credentialSource === 'settings' ? 'Replace API key' : 'Save API key'}
+                </Button>
+                {credentialSource === 'settings' && (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    disabled={saveCredentialMutation.isPending}
+                    loading={removeCredentialMutation.isPending}
+                    onClick={() => {
+                      setApiKey('');
+                      setCredentialMessage('');
+                      removeCredentialMutation.mutate(provider);
+                    }}
+                  >
+                    Remove saved key
+                  </Button>
+                )}
+              </div>
+              {credentialMessage && (
+                <p role="status" className="text-sm text-on-surface-variant">
+                  {credentialMessage}
+                </p>
+              )}
+              <p className="text-xs text-on-surface-variant">
+                Connection destinations are fixed by provider. Ollama uses its local API and does
+                not need a key or cloud consent.
+              </p>
+            </div>
+          ) : (
+            <p className="text-xs text-on-surface-variant">
+              Ollama uses its local API and needs no API key or cloud consent. Its destination is
+              restricted to localhost or the Docker host.
+            </p>
+          )}
+          {activeStatus && (
+            <div className="rounded border border-outline-variant bg-surface-container-low p-3 text-sm">
+              <p className="font-medium text-on-surface">Connection: {activeStatus.state}</p>
+              <p className="mt-1 text-on-surface-variant">{activeStatus.message}</p>
+              {activeStatus.mode === 'cloud' && !activeStatus.cloudConsent && (
+                <p className="mt-1 text-error">
+                  Cloud consent is required before ledger context can be sent.
+                </p>
+              )}
+              {activeStatus.provider === 'ollama' && (
+                <p className="mt-1 text-xs text-on-surface-variant">
+                  Server reachable:{' '}
+                  {activeStatus.serverReachable === null
+                    ? 'not checked'
+                    : activeStatus.serverReachable
+                      ? 'yes'
+                      : 'no'}
+                  {' · '}Model available:{' '}
+                  {activeStatus.modelAvailable === null
+                    ? 'not checked'
+                    : activeStatus.modelAvailable
+                      ? 'yes'
+                      : 'no'}
+                </p>
+              )}
+            </div>
+          )}
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div className="space-y-1">
+              <p role="status" className="text-sm text-on-surface-variant">
+                {message || testMessage}
+              </p>
+              {message && testMessage && (
+                <p role="status" className="text-xs text-on-surface-variant">
+                  {testMessage}
+                </p>
+              )}
+            </div>
+            <div className="flex gap-2">
+              <Button
+                size="sm"
+                variant="outline"
+                disabled={needsSave || testMutation.isPending}
+                loading={testMutation.isPending}
+                onClick={() => {
+                  setTestMessage('');
+                  testMutation.mutate();
+                }}
+              >
+                Test connection
+              </Button>
+              <Button
+                size="sm"
+                disabled={!model.trim()}
+                loading={mutation.isPending}
+                onClick={() => {
+                  setMessage('');
+                  setTestMessage('');
+                  mutation.mutate({
+                    ai_provider: provider,
+                    ai_model: model.trim(),
+                    ai_enabled: enabled,
+                    ai_cloud_consent_provider:
+                      provider !== 'ollama' && cloudConsent ? provider : null,
+                  });
+                }}
+              >
+                <Save className="h-4 w-4" /> Save preferences
+              </Button>
+            </div>
+          </div>
         </div>
       </CardBody>
     </Card>
@@ -399,6 +686,13 @@ function DataSetup() {
   const [currency, setCurrency] = useState('INR');
   const [categoryName, setCategoryName] = useState('');
   const [categoryType, setCategoryType] = useState<'expense' | 'income'>('expense');
+  const [editingAccount, setEditingAccount] = useState<Account | null>(null);
+  const [editAccountName, setEditAccountName] = useState('');
+  const [editAccountType, setEditAccountType] = useState('bank');
+  const [editAccountBalance, setEditAccountBalance] = useState('0');
+  const [editAccountCurrency, setEditAccountCurrency] = useState('INR');
+  const [editingCategoryId, setEditingCategoryId] = useState<number | null>(null);
+  const [editCategoryName, setEditCategoryName] = useState('');
   const [message, setMessage] = useState('');
   const refresh = () => {
     queryClient.invalidateQueries({ queryKey: ['accounts-all'] });
@@ -417,7 +711,31 @@ function DataSetup() {
   const toggleAccount = useMutation({
     mutationFn: ({ account, active }: { account: Account; active: boolean }) =>
       updateAccount(account.id, { isActive: active }),
-    onSuccess: refresh,
+    onSuccess: (_response, variables) => {
+      setMessage(
+        variables.active
+          ? 'Account activated; its balance is included in Net Worth.'
+          : 'Account deactivated; its balance is excluded from Net Worth. Transaction history is preserved.',
+      );
+      refresh();
+    },
+    onError: (error: Error) => setMessage(error.message || 'Could not update account'),
+  });
+  const saveAccount = useMutation({
+    mutationFn: () => {
+      if (!editingAccount) throw new Error('Choose an account to edit');
+      return updateAccount(editingAccount.id, {
+        name: editAccountName.trim(),
+        type: editAccountType,
+        balance: Number(editAccountBalance),
+        currency: editAccountCurrency.trim().toUpperCase(),
+      });
+    },
+    onSuccess: () => {
+      setEditingAccount(null);
+      setMessage('Account details and balance snapshot updated.');
+      refresh();
+    },
     onError: (error: Error) => setMessage(error.message || 'Could not update account'),
   });
   const addCategory = useMutation({
@@ -433,6 +751,18 @@ function DataSetup() {
     mutationFn: deleteCategory,
     onSuccess: refresh,
     onError: (error: Error) => setMessage(error.message || 'Could not delete category'),
+  });
+  const saveCategory = useMutation({
+    mutationFn: () => {
+      if (editingCategoryId === null) throw new Error('Choose a category to edit');
+      return updateCategory(editingCategoryId, { name: editCategoryName.trim() });
+    },
+    onSuccess: () => {
+      setEditingCategoryId(null);
+      setMessage('Category renamed. Linked transactions and rules remain attached.');
+      refresh();
+    },
+    onError: (error: Error) => setMessage(error.message || 'Could not rename category'),
   });
 
   if (accountsQuery.isLoading || categoriesQuery.isLoading) return <LoadingSpinner />;
@@ -506,21 +836,114 @@ function DataSetup() {
             </form>
             <ul className="mt-3 divide-y divide-outline-variant/40">
               {accounts.map((account) => (
-                <li
-                  key={account.id}
-                  className="flex items-center justify-between gap-3 py-2 text-sm"
-                >
-                  <span>
-                    {account.name} · {account.currency} {Number(account.balance).toFixed(2)}
-                  </span>
-                  <button
-                    onClick={() =>
-                      toggleAccount.mutate({ account, active: account.is_active !== 1 })
-                    }
-                    className="text-xs text-primary-fixed-dim underline"
-                  >
-                    {account.is_active === 1 ? 'Deactivate' : 'Activate'}
-                  </button>
+                <li key={account.id} className="py-3 text-sm">
+                  {editingAccount?.id === account.id ? (
+                    <form
+                      className="grid grid-cols-1 sm:grid-cols-2 gap-2"
+                      onSubmit={(event) => {
+                        event.preventDefault();
+                        setMessage('');
+                        saveAccount.mutate();
+                      }}
+                    >
+                      <Input
+                        aria-label={`Edit ${account.name} account name`}
+                        value={editAccountName}
+                        onChange={(event) => setEditAccountName(event.target.value)}
+                        maxLength={100}
+                        required
+                      />
+                      <Select
+                        aria-label={`Edit ${account.name} account type`}
+                        value={editAccountType}
+                        onChange={(event) => setEditAccountType(event.target.value)}
+                      >
+                        <option value="bank">Bank</option>
+                        <option value="card">Card</option>
+                        <option value="cash">Cash</option>
+                        <option value="wallet">Wallet</option>
+                        <option value="investment">Investment</option>
+                      </Select>
+                      <label className="text-xs text-on-surface-variant">
+                        Currency code
+                        <Input
+                          aria-label={`Edit ${account.name} currency code`}
+                          value={editAccountCurrency}
+                          onChange={(event) =>
+                            setEditAccountCurrency(event.target.value.toUpperCase())
+                          }
+                          maxLength={3}
+                          pattern="[A-Z]{3}"
+                          required
+                        />
+                      </label>
+                      <label className="text-xs text-on-surface-variant">
+                        Current balance snapshot ({editAccountCurrency || account.currency})
+                        <Input
+                          aria-label={`Edit ${account.name} balance snapshot`}
+                          type="number"
+                          step="0.01"
+                          max="999999999999.99"
+                          min="-999999999999.99"
+                          value={editAccountBalance}
+                          onChange={(event) => setEditAccountBalance(event.target.value)}
+                          required
+                        />
+                      </label>
+                      <div className="flex items-end gap-2">
+                        <Button type="submit" size="sm" loading={saveAccount.isPending}>
+                          <Save className="h-4 w-4" /> Save
+                        </Button>
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => setEditingAccount(null)}
+                        >
+                          <X className="h-4 w-4" /> Cancel
+                        </Button>
+                      </div>
+                      <p className="sm:col-span-2 text-xs text-on-surface-variant">
+                        Currency cannot change once transactions use this account. Deactivating an
+                        account excludes its snapshot from Net Worth and keeps its transactions.
+                      </p>
+                    </form>
+                  ) : (
+                    <div className="flex flex-wrap items-center justify-between gap-3">
+                      <span>
+                        {account.name} · {account.type} · {account.currency}{' '}
+                        {Number(account.balance).toFixed(2)}
+                        {account.is_active !== 1 && (
+                          <span className="ml-2 text-xs text-on-surface-variant">Inactive</span>
+                        )}
+                      </span>
+                      <div className="flex items-center gap-3">
+                        <button
+                          aria-label={`Edit ${account.name} account`}
+                          onClick={() => {
+                            setEditingAccount(account);
+                            setEditAccountName(account.name);
+                            setEditAccountType(account.type);
+                            setEditAccountBalance(String(account.balance));
+                            setEditAccountCurrency(account.currency);
+                            setMessage('');
+                          }}
+                          className="text-xs text-primary-fixed-dim underline"
+                        >
+                          Edit
+                        </button>
+                        <button
+                          disabled={toggleAccount.isPending}
+                          onClick={() =>
+                            toggleAccount.mutate({ account, active: account.is_active !== 1 })
+                          }
+                          className="text-xs text-primary-fixed-dim underline disabled:opacity-50"
+                        >
+                          {account.is_active === 1 ? 'Deactivate' : 'Activate'}
+                        </button>
+                      </div>
+                    </div>
+                  )}
                 </li>
               ))}
             </ul>
@@ -557,28 +980,74 @@ function DataSetup() {
             </form>
             <ul className="mt-3 divide-y divide-outline-variant/40">
               {categories.map((category) => (
-                <li
-                  key={category.id}
-                  className="flex items-center justify-between gap-3 py-2 text-sm"
-                >
-                  <span>
-                    {category.name}{' '}
-                    <span className="text-xs text-on-surface-variant">{category.type}</span>
-                  </span>
-                  <button
-                    aria-label={`Delete category ${category.name}`}
-                    onClick={() => {
-                      if (
-                        window.confirm(
-                          `Delete ${category.name}? Existing transactions will become uncategorized and matching rules will be removed.`,
-                        )
-                      )
-                        removeCategory.mutate(category.id);
-                    }}
-                    className="text-error"
-                  >
-                    <Trash2 className="h-4 w-4" />
-                  </button>
+                <li key={category.id} className="py-2 text-sm">
+                  {editingCategoryId === category.id ? (
+                    <form
+                      className="flex flex-wrap items-center gap-2"
+                      onSubmit={(event) => {
+                        event.preventDefault();
+                        setMessage('');
+                        saveCategory.mutate();
+                      }}
+                    >
+                      <Input
+                        aria-label={`Rename ${category.name}`}
+                        value={editCategoryName}
+                        onChange={(event) => setEditCategoryName(event.target.value)}
+                        maxLength={100}
+                        required
+                        autoFocus
+                      />
+                      <Button type="submit" size="sm" loading={saveCategory.isPending}>
+                        <Save className="h-4 w-4" /> Save
+                      </Button>
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => setEditingCategoryId(null)}
+                      >
+                        <X className="h-4 w-4" /> Cancel
+                      </Button>
+                      <p className="basis-full text-xs text-on-surface-variant">
+                        Renaming preserves links to historical transactions and categorization
+                        rules.
+                      </p>
+                    </form>
+                  ) : (
+                    <div className="flex items-center justify-between gap-3">
+                      <span>
+                        {category.name}{' '}
+                        <span className="text-xs text-on-surface-variant">{category.type}</span>
+                      </span>
+                      <div className="flex items-center gap-3">
+                        <button
+                          aria-label={`Rename category ${category.name}`}
+                          onClick={() => {
+                            setEditingCategoryId(category.id);
+                            setEditCategoryName(category.name);
+                          }}
+                          className="text-xs text-primary-fixed-dim underline"
+                        >
+                          <Pencil className="inline h-3.5 w-3.5 mr-1" /> Rename
+                        </button>
+                        <button
+                          aria-label={`Delete category ${category.name}`}
+                          onClick={() => {
+                            if (
+                              window.confirm(
+                                `Delete ${category.name}? Existing transactions will become uncategorized and matching rules will be removed.`,
+                              )
+                            )
+                              removeCategory.mutate(category.id);
+                          }}
+                          className="text-error"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </button>
+                      </div>
+                    </div>
+                  )}
                 </li>
               ))}
             </ul>

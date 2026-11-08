@@ -3,6 +3,7 @@
 .vscode
 .codex
 .gemini
+.impeccable
 node_modules
 **/node_modules
 **/dist
@@ -13,6 +14,9 @@ node_modules
 **/data
 **/uploads
 **/backups
+**/secrets
+**/.secrets
+**/provider-credentials.json
 **/*.db
 **/*.db-*
 **/*.sqlite*
