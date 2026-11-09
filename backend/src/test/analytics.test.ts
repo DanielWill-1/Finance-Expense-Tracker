@@ -54,9 +54,24 @@ describe('Analytics Endpoints', () => {
   it('GET /api/analytics/summary returns totals', async () => {
     const res = await request(app).get('/api/analytics/summary');
     expect(res.status).toBe(200);
+    expect(res.body.data.period).toEqual({ startDate: null, endDate: null, isAllTime: true });
     expect(res.body.data).toHaveProperty('totalIncome');
     expect(res.body.data).toHaveProperty('totalExpenses');
     expect(res.body.data).toHaveProperty('netSavings');
+  });
+
+  it('GET /api/analytics/summary reports the applied date bounds', async () => {
+    const res = await request(app).get(
+      '/api/analytics/summary?startDate=2026-01-01&endDate=2026-01-31',
+    );
+    expect(res.status).toBe(200);
+    expect(res.body.data.period).toEqual({
+      startDate: '2026-01-01',
+      endDate: '2026-01-31',
+      isAllTime: false,
+    });
+    expect(res.body.data.totalIncome).toBe(1000);
+    expect(res.body.data.totalExpenses).toBe(300);
   });
 
   it('GET /api/analytics/monthly returns monthly data', async () => {

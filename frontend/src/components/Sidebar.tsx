@@ -9,12 +9,12 @@ function Sidebar({ onAddTransaction }: { onAddTransaction: () => void }) {
 
   return (
     <>
-      <aside className="fixed inset-y-0 left-0 z-40 hidden w-[72px] flex-col border-r border-outline-variant bg-white px-3 py-6 md:flex lg:w-[232px] lg:px-5">
+      <aside className="fixed inset-y-0 left-0 z-40 hidden w-[208px] flex-col border-r border-outline-variant bg-sidebar px-4 py-6 md:flex lg:w-[232px] lg:px-5">
         <div className="flex items-center gap-3 px-1">
           <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-primary-container text-primary-fixed-dim">
             <Wallet aria-hidden="true" className="h-5 w-5" strokeWidth={1.8} />
           </div>
-          <div className="hidden min-w-0 lg:block">
+          <div className="min-w-0">
             <p className="truncate text-base font-semibold tracking-[-0.02em] text-on-surface">
               GhostLedger
             </p>
@@ -36,21 +36,19 @@ function Sidebar({ onAddTransaction }: { onAddTransaction: () => void }) {
               onClick={onAddTransaction}
               aria-label="Add transaction"
               title="Add transaction"
-              className="flex min-h-11 w-full items-center justify-center gap-2 rounded-lg bg-primary-fixed-dim px-3 text-sm font-medium text-on-primary transition-colors hover:bg-primary-fixed focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-fixed-dim focus-visible:ring-offset-2 lg:justify-start"
+              className="flex min-h-11 w-full items-center justify-start gap-2 rounded-lg bg-primary-fixed-dim px-3 text-sm font-medium text-on-primary transition-colors hover:bg-primary-fixed focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-fixed-dim focus-visible:ring-offset-2 focus-visible:ring-offset-background"
             >
               <Plus aria-hidden="true" className="h-4 w-4 shrink-0" />
-              <span className="hidden lg:inline">Add Transaction</span>
+              <span>Add Transaction</span>
             </button>
           )}
-          <p className="hidden text-xs leading-5 text-on-surface-variant lg:block">
-            Local-first · no sign-in
-          </p>
+          <p className="text-xs leading-5 text-on-surface-variant">Local-first · no sign-in</p>
         </div>
       </aside>
 
       <nav
         aria-label="Primary navigation"
-        className={`fixed inset-x-0 bottom-0 z-40 grid min-h-16 border-t border-outline-variant bg-white px-1 pb-[env(safe-area-inset-bottom)] shadow-[0_-4px_16px_rgba(15,23,42,0.04)] md:hidden ${
+        className={`fixed inset-x-0 bottom-0 z-40 grid min-h-16 border-t border-outline-variant bg-sidebar px-1 pb-[env(safe-area-inset-bottom)] shadow-mobile-nav md:hidden ${
           isDashboard ? 'grid-cols-4' : 'grid-cols-[repeat(4,minmax(0,1fr))_3.5rem]'
         }`}
       >
@@ -74,15 +72,7 @@ function Sidebar({ onAddTransaction }: { onAddTransaction: () => void }) {
   );
 }
 
-function SidebarLink({
-  to,
-  icon: Icon,
-  label,
-}: {
-  to: string;
-  icon: LucideIcon;
-  label: string;
-}) {
+function SidebarLink({ to, icon: Icon, label }: { to: string; icon: LucideIcon; label: string }) {
   return (
     <NavLink
       to={to}
@@ -90,15 +80,15 @@ function SidebarLink({
       aria-label={label}
       title={label}
       className={({ isActive }) =>
-        `flex min-h-11 items-center justify-center gap-3 rounded-lg border-l-2 px-0 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-fixed-dim focus-visible:ring-offset-2 lg:justify-start lg:px-3 ${
+        `flex min-h-11 items-center justify-start gap-3 rounded-lg px-3 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-fixed-dim focus-visible:ring-offset-2 focus-visible:ring-offset-background ${
           isActive
-            ? 'border-primary-fixed-dim bg-primary-fixed-dim/10 font-semibold text-primary-fixed-dim'
-            : 'border-transparent text-on-surface-variant hover:bg-surface-container-low hover:text-on-surface'
+            ? 'bg-selected/10 font-semibold text-primary-fixed-dim'
+            : 'text-on-surface-variant hover:bg-surface-container-low hover:text-on-surface'
         }`
       }
     >
       <Icon aria-hidden="true" className="h-[18px] w-[18px] shrink-0" strokeWidth={1.8} />
-      <span className="hidden lg:inline">{label}</span>
+      <span>{label}</span>
     </NavLink>
   );
 }
@@ -118,8 +108,10 @@ function MobileSidebarLink({
       end={to === '/'}
       aria-label={label}
       className={({ isActive }) =>
-        `mx-0.5 my-1 flex min-w-0 flex-col items-center justify-center gap-1 rounded-lg text-[10px] font-medium leading-none transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-fixed-dim ${
-          isActive ? 'bg-primary-fixed-dim/10 text-primary-fixed-dim' : 'text-on-surface-variant hover:bg-surface-container-low'
+        `mx-0.5 my-1 flex min-h-11 min-w-0 flex-col items-center justify-center gap-1 rounded-lg px-0.5 text-xs font-medium leading-tight transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-fixed-dim focus-visible:ring-offset-2 focus-visible:ring-offset-background ${
+          isActive
+            ? 'bg-selected/10 text-primary-fixed-dim'
+            : 'text-on-surface-variant hover:bg-surface-container-low'
         }`
       }
     >

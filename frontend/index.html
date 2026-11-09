@@ -6,6 +6,21 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="description" content="GhostLedger — A local-first personal finance application" />
     <title>GhostLedger</title>
+    <script>
+      (function () {
+        var theme = 'light';
+        try {
+          var saved = window.localStorage.getItem('ghostledger-theme');
+          if (saved === 'light' || saved === 'dark') theme = saved;
+        } catch (_) {
+          // Keep the approved light theme when browser storage is unavailable.
+        }
+        var root = document.documentElement;
+        root.dataset.theme = theme;
+        if (theme === 'dark') root.classList.add('dark');
+        root.style.colorScheme = theme;
+      })();
+    </script>
   </head>
   <body class="bg-background font-sans text-on-surface antialiased">
     <div id="root"></div>

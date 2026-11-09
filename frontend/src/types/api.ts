@@ -58,6 +58,11 @@ export interface Account {
 }
 
 export interface AnalyticsSummary {
+  period: {
+    startDate: string | null;
+    endDate: string | null;
+    isAllTime: boolean;
+  };
   totalIncome: number | null;
   totalExpenses: number | null;
   netSavings: number | null;

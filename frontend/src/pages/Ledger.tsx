@@ -151,7 +151,7 @@ export default function Ledger() {
                     setSearch(e.target.value);
                     setPage(1);
                   }}
-                  className="mt-1 w-full bg-surface-container-low border border-outline-variant rounded py-2 pl-8 pr-3 font-mono text-sm text-on-surface placeholder:text-on-surface-variant/50 focus:outline-none focus:border-primary-fixed-dim"
+                  className="mt-1 w-full bg-input border border-outline-variant rounded py-2 pl-8 pr-3 font-mono text-sm text-on-surface placeholder:text-on-surface-variant/50 focus:outline-none focus:border-primary-fixed-dim"
                 />
               </label>
               <label className="text-xs text-on-surface-variant">
@@ -163,7 +163,7 @@ export default function Ledger() {
                     setTypeFilter(e.target.value);
                     setPage(1);
                   }}
-                  className="mt-1 w-full bg-surface-container-low border border-outline-variant text-on-surface font-mono text-sm py-2 px-3 rounded focus:outline-none focus:border-primary-fixed-dim"
+                  className="mt-1 w-full bg-input border border-outline-variant text-on-surface font-mono text-sm py-2 px-3 rounded focus:outline-none focus:border-primary-fixed-dim"
                 >
                   <option value="">All types</option>
                   <option value="income">Income</option>
@@ -179,7 +179,7 @@ export default function Ledger() {
                     setCategoryFilter(e.target.value);
                     setPage(1);
                   }}
-                  className="mt-1 w-full bg-surface-container-low border border-outline-variant text-on-surface font-mono text-sm py-2 px-3 rounded focus:outline-none focus:border-primary-fixed-dim"
+                  className="mt-1 w-full bg-input border border-outline-variant text-on-surface font-mono text-sm py-2 px-3 rounded focus:outline-none focus:border-primary-fixed-dim"
                 >
                   <option value="">All categories</option>
                   {categories.map((c) => (
@@ -198,7 +198,7 @@ export default function Ledger() {
                     setAccountFilter(e.target.value);
                     setPage(1);
                   }}
-                  className="mt-1 w-full bg-surface-container-low border border-outline-variant text-on-surface font-mono text-sm py-2 px-3 rounded focus:outline-none focus:border-primary-fixed-dim"
+                  className="mt-1 w-full bg-input border border-outline-variant text-on-surface font-mono text-sm py-2 px-3 rounded focus:outline-none focus:border-primary-fixed-dim"
                 >
                   <option value="">All accounts</option>
                   {accounts.map((account) => (
@@ -219,7 +219,7 @@ export default function Ledger() {
                     setStartDate(event.target.value);
                     setPage(1);
                   }}
-                  className="mt-1 w-full bg-surface-container-low border border-outline-variant text-on-surface font-mono text-sm py-2 px-3 rounded focus:outline-none focus:border-primary-fixed-dim"
+                  className="mt-1 w-full bg-input border border-outline-variant text-on-surface font-mono text-sm py-2 px-3 rounded focus:outline-none focus:border-primary-fixed-dim"
                 />
               </label>
               <label className="text-xs text-on-surface-variant">
@@ -233,7 +233,7 @@ export default function Ledger() {
                     setEndDate(event.target.value);
                     setPage(1);
                   }}
-                  className="mt-1 w-full bg-surface-container-low border border-outline-variant text-on-surface font-mono text-sm py-2 px-3 rounded focus:outline-none focus:border-primary-fixed-dim"
+                  className="mt-1 w-full bg-input border border-outline-variant text-on-surface font-mono text-sm py-2 px-3 rounded focus:outline-none focus:border-primary-fixed-dim"
                 />
               </label>
               <label className="text-xs text-on-surface-variant">
@@ -245,7 +245,7 @@ export default function Ledger() {
                     setSortBy(event.target.value);
                     setPage(1);
                   }}
-                  className="mt-1 w-full bg-surface-container-low border border-outline-variant text-on-surface font-mono text-sm py-2 px-3 rounded focus:outline-none focus:border-primary-fixed-dim"
+                  className="mt-1 w-full bg-input border border-outline-variant text-on-surface font-mono text-sm py-2 px-3 rounded focus:outline-none focus:border-primary-fixed-dim"
                 >
                   <option value="date">Date</option>
                   <option value="amount">Amount</option>
@@ -263,7 +263,7 @@ export default function Ledger() {
                     setSortOrder(event.target.value as 'asc' | 'desc');
                     setPage(1);
                   }}
-                  className="mt-1 w-full bg-surface-container-low border border-outline-variant text-on-surface font-mono text-sm py-2 px-3 rounded focus:outline-none focus:border-primary-fixed-dim"
+                  className="mt-1 w-full bg-input border border-outline-variant text-on-surface font-mono text-sm py-2 px-3 rounded focus:outline-none focus:border-primary-fixed-dim"
                 >
                   <option value="desc">Newest / highest first</option>
                   <option value="asc">Oldest / lowest first</option>

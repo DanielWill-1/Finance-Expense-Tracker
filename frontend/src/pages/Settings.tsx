@@ -228,7 +228,7 @@ function ProviderPreferences() {
               <option value="groq">Groq</option>
               <option value="ollama">Ollama (local)</option>
             </Select>
-            <span className="mt-1 block font-mono text-[11px]">{displayedDestination}</span>
+            <span className="mt-1 block font-mono text-xs">{displayedDestination}</span>
           </label>
           <label className="text-xs text-on-surface-variant">
             Model identifier

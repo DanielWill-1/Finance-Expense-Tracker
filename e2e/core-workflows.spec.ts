@@ -231,7 +231,7 @@ test('fresh local setup, transaction edits, rule-backed import review, recovery,
   expect(horizontalOverflow).toBeFalsy();
   await page.getByRole('link', { name: 'Settings' }).focus();
   await page.keyboard.press('Tab');
-  await expect(page.locator(':focus')).not.toBeEmpty();
+  await expect(page.getByRole('button', { name: 'Add transaction' }).first()).toBeFocused();
 
   await testInfo.attach('synthetic-workflow', {
     body: Buffer.from(

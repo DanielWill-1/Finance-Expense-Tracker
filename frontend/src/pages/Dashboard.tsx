@@ -38,12 +38,14 @@ interface CurrencyAmount {
 }
 
 const chartColors = {
-  income: 'var(--gl-accent)',
-  expense: 'var(--gl-expense)',
-  grid: 'var(--gl-border)',
-  axis: 'var(--gl-muted)',
-  text: 'var(--gl-text)',
-  surface: 'var(--gl-surface)',
+  income: 'rgb(var(--gl-positive))',
+  expense: 'rgb(var(--gl-expense))',
+  grid: 'rgb(var(--gl-chart-grid))',
+  axis: 'rgb(var(--gl-chart-axis))',
+  text: 'rgb(var(--gl-tooltip-text))',
+  surface: 'rgb(var(--gl-tooltip-surface))',
+  tooltipBorder: 'rgb(var(--gl-tooltip-border))',
+  tooltipShadow: 'var(--gl-tooltip-shadow)',
 };
 
 export default function Dashboard() {
@@ -71,15 +73,33 @@ export default function Dashboard() {
         </Button>
       </header>
 
-      {summaryQuery.isLoading ? (
-        <SummarySkeleton />
-      ) : summaryQuery.error || !summary ? (
-        <Card>
-          <ErrorState message="Failed to load summary" onRetry={() => summaryQuery.refetch()} />
-        </Card>
-      ) : (
-        <SummaryCards summary={summary} />
-      )}
+      <section aria-labelledby="financial-overview-heading" className="space-y-4">
+        <div className="flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
+          <h2
+            id="financial-overview-heading"
+            className="text-lg font-semibold tracking-[-0.02em] text-on-surface"
+          >
+            Financial overview
+          </h2>
+          {summary && (
+            <p className="text-xs text-on-surface-variant sm:text-right">
+              <span className="font-medium text-on-surface">Transaction totals</span>
+              <span aria-hidden="true"> · </span>
+              {formatReportingPeriod(summary.period)}
+            </p>
+          )}
+        </div>
+
+        {summaryQuery.isLoading ? (
+          <SummarySkeleton />
+        ) : summaryQuery.error || !summary ? (
+          <Card>
+            <ErrorState message="Failed to load summary" onRetry={() => summaryQuery.refetch()} />
+          </Card>
+        ) : (
+          <SummaryCards summary={summary} />
+        )}
+      </section>
 
       <section
         aria-label="Cash flow and expense categories"
@@ -91,7 +111,10 @@ export default function Dashboard() {
 
       <RecentTransactions onAddTransaction={onAddTransaction} />
 
-      <section aria-label="More spending details" className="grid min-w-0 grid-cols-1 gap-5 xl:grid-cols-2">
+      <section
+        aria-label="More spending details"
+        className="grid min-w-0 grid-cols-1 gap-5 xl:grid-cols-2"
+      >
         <UpcomingRecurring />
         <LargestExpenses />
       </section>
@@ -134,9 +157,21 @@ function formatMonth(value: string) {
 function formatDate(value: string) {
   const date = new Date(`${value}T12:00:00`);
   if (Number.isNaN(date.getTime())) return value;
-  return new Intl.DateTimeFormat('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }).format(
-    date,
-  );
+  return new Intl.DateTimeFormat('en-IN', {
+    day: 'numeric',
+    month: 'short',
+    year: 'numeric',
+  }).format(date);
+}
+
+function formatReportingPeriod(period: AnalyticsSummary['period']) {
+  if (period.isAllTime || (!period.startDate && !period.endDate)) return 'All time';
+  const start = period.startDate ? formatDate(period.startDate) : null;
+  const end = period.endDate ? formatDate(period.endDate) : null;
+  if (start && end) return `${start} – ${end}`;
+  if (start) return `From ${start}`;
+  if (end) return `Through ${end}`;
+  return 'All time';
 }
 
 function amountValues(summary: AnalyticsSummary, key: SummaryKey): CurrencyAmount[] {
@@ -158,7 +193,8 @@ function netWorthValues(summary: AnalyticsSummary): CurrencyAmount[] {
 
   return [
     {
-      currency: summary.netWorthByCurrency?.[0]?.currency ?? summary.currencyTotals?.[0]?.currency ?? 'INR',
+      currency:
+        summary.netWorthByCurrency?.[0]?.currency ?? summary.currencyTotals?.[0]?.currency ?? 'INR',
       amount: summary.netWorth,
     },
   ];
@@ -186,9 +222,11 @@ function MoneyValues({
   tone?: Tone;
   emphasized?: boolean;
 }) {
-  const size = emphasized ? 'text-2xl lg:text-3xl' : 'text-[1.375rem] lg:text-[1.625rem]';
+  const size = emphasized ? 'text-2xl lg:text-3xl' : 'text-xl lg:text-2xl';
   return (
-    <div className={`min-w-0 ${size} font-semibold leading-tight tracking-[-0.025em] tabular-nums ${toneClass(tone)}`}>
+    <div
+      className={`min-w-0 ${size} font-semibold leading-tight tracking-[-0.025em] tabular-nums ${toneClass(tone)}`}
+    >
       {values.map((value) => (
         <span key={value.currency} className="block break-words">
           {formatCurrency(value.amount, value.currency)}
@@ -205,7 +243,7 @@ function SummaryCards({ summary }: { summary: AnalyticsSummary }) {
   const savings = amountValues(summary, 'netSavings');
 
   return (
-    <section aria-label="Financial overview" className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
       <SummaryCard
         label="Current Net Worth"
         values={worth}
@@ -221,10 +259,12 @@ function SummaryCards({ summary }: { summary: AnalyticsSummary }) {
         values={savings}
         tone={amountTone(savings)}
         note={
-          summary.savingsRate === null ? undefined : `${summary.savingsRate.toFixed(2)}% savings rate`
+          summary.savingsRate === null
+            ? undefined
+            : `${summary.savingsRate.toFixed(2)}% savings rate`
         }
       />
-    </section>
+    </div>
   );
 }
 
@@ -249,7 +289,9 @@ function SummaryCard({
         <h2 className="text-sm font-medium text-on-surface-variant">{label}</h2>
         <div>
           <MoneyValues values={values} tone={tone} emphasized={emphasized} />
-          {note && <p className="mt-2 max-w-[38ch] text-xs leading-5 text-on-surface-variant">{note}</p>}
+          {note && (
+            <p className="mt-2 max-w-[38ch] text-xs leading-5 text-on-surface-variant">{note}</p>
+          )}
         </div>
       </CardBody>
     </Card>
@@ -258,7 +300,10 @@ function SummaryCard({
 
 function SummarySkeleton() {
   return (
-    <div aria-label="Loading financial summary" className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+    <div
+      aria-label="Loading financial summary"
+      className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4"
+    >
       {[0, 1, 2, 3].map((item) => (
         <Card key={item}>
           <CardBody className="min-h-[142px] animate-pulse px-5 py-5">
@@ -305,7 +350,8 @@ function CashFlowChart({ summary }: { summary?: AnalyticsSummary }) {
 
   for (const row of monthlyRows) {
     const currency = row.currency ?? 'INR';
-    const rowsByMonth = chartMaps.get(currency) ?? new Map<string, Record<string, string | number>>();
+    const rowsByMonth =
+      chartMaps.get(currency) ?? new Map<string, Record<string, string | number>>();
     const chartRow = rowsByMonth.get(row.month) ?? { month: row.month };
     chartRow[`Income ${currency}`] = Number.isFinite(row.income) ? row.income : 0;
     chartRow[`Expense ${currency}`] = Number.isFinite(row.expense) ? row.expense : 0;
@@ -317,15 +363,23 @@ function CashFlowChart({ summary }: { summary?: AnalyticsSummary }) {
     return (
       <Card>
         <CardBody>
-          <SectionHeading title="Cash flow" description="Monthly income and expenses · last 12 months" />
-          <EmptyMessage title="No transaction data yet" description="Cash flow will appear here after you add or import activity." />
+          <SectionHeading
+            title="Cash flow"
+            description="Monthly income and expenses · last 12 months"
+          />
+          <EmptyMessage
+            title="No transaction data yet"
+            description="Cash flow will appear here after you add or import activity."
+          />
         </CardBody>
       </Card>
     );
   }
 
   return (
-    <div className={`grid min-w-0 grid-cols-1 gap-5 ${currencyRows.length > 1 ? '2xl:grid-cols-2' : ''}`}>
+    <div
+      className={`grid min-w-0 grid-cols-1 gap-5 ${currencyRows.length > 1 ? '2xl:grid-cols-2' : ''}`}
+    >
       {currencyRows.map((currency) => {
         const chartData = [...(chartMaps.get(currency)?.values() ?? [])].sort((a, b) =>
           String(a.month).localeCompare(String(b.month)),
@@ -342,8 +396,13 @@ function CashFlowChart({ summary }: { summary?: AnalyticsSummary }) {
                 />
                 {burn && (
                   <div className="shrink-0 sm:text-right">
-                    <p className="text-xs text-on-surface-variant">Monthly burn · 6 full months</p>
-                    <p className="mt-1 text-sm font-semibold tabular-nums text-on-surface">{burn}</p>
+                    <p className="text-xs text-on-surface-variant">Average monthly expenses</p>
+                    <p className="mt-0.5 text-xs leading-4 text-on-surface-variant">
+                      Based on 6 completed calendar months
+                    </p>
+                    <p className="mt-1 text-sm font-semibold tabular-nums text-on-surface">
+                      {burn}
+                    </p>
                   </div>
                 )}
               </div>
@@ -359,14 +418,27 @@ function CashFlowChart({ summary }: { summary?: AnalyticsSummary }) {
                 className="mt-3 h-[250px] min-w-0 sm:h-[290px]"
               >
                 <ResponsiveContainer width="100%" height="100%">
-                  <LineChart data={chartData} margin={{ top: 12, right: 10, left: 2, bottom: 2 }} accessibilityLayer>
-                    <CartesianGrid stroke={chartColors.grid} strokeDasharray="3 6" vertical={false} />
+                  <LineChart
+                    data={chartData}
+                    margin={{ top: 12, right: 10, left: 2, bottom: 2 }}
+                    accessibilityLayer
+                  >
+                    <CartesianGrid
+                      stroke={chartColors.grid}
+                      strokeDasharray="3 6"
+                      vertical={false}
+                    />
                     <XAxis
                       dataKey="month"
                       tickFormatter={formatMonth}
                       interval="preserveStartEnd"
                       minTickGap={16}
-                      tick={{ fill: chartColors.axis, fontSize: 11, fontFamily: 'Inter, system-ui, sans-serif' }}
+                      tick={{
+                        fill: chartColors.axis,
+                        fontSize: 11,
+                        fontFamily:
+                          'system-ui, -apple-system, BlinkMacSystemFont, Segoe UI, sans-serif',
+                      }}
                       tickLine={false}
                       axisLine={false}
                       dy={10}
@@ -374,19 +446,27 @@ function CashFlowChart({ summary }: { summary?: AnalyticsSummary }) {
                     <YAxis
                       width={70}
                       tickFormatter={(value: number) => formatAxisCurrency(value, currency)}
-                      tick={{ fill: chartColors.axis, fontSize: 11, fontFamily: 'Inter, system-ui, sans-serif' }}
+                      tick={{
+                        fill: chartColors.axis,
+                        fontSize: 11,
+                        fontFamily:
+                          'system-ui, -apple-system, BlinkMacSystemFont, Segoe UI, sans-serif',
+                      }}
                       tickLine={false}
                       axisLine={false}
                       dx={-2}
                     />
                     <Tooltip
                       labelFormatter={(value) => formatMonth(String(value))}
-                      formatter={(value, name) => [formatCurrency(Number(value), currency), String(name)]}
+                      formatter={(value, name) => [
+                        formatCurrency(Number(value), currency),
+                        String(name),
+                      ]}
                       contentStyle={{
                         backgroundColor: chartColors.surface,
-                        border: `1px solid ${chartColors.grid}`,
+                        border: `1px solid ${chartColors.tooltipBorder}`,
                         borderRadius: '12px',
-                        boxShadow: '0 8px 24px rgba(15, 23, 42, 0.08)',
+                        boxShadow: chartColors.tooltipShadow,
                         color: chartColors.text,
                         fontSize: '12px',
                       }}
@@ -400,7 +480,12 @@ function CashFlowChart({ summary }: { summary?: AnalyticsSummary }) {
                       stroke={chartColors.income}
                       strokeWidth={2.5}
                       dot={false}
-                      activeDot={{ r: 4, fill: chartColors.surface, stroke: chartColors.income, strokeWidth: 2 }}
+                      activeDot={{
+                        r: 4,
+                        fill: chartColors.surface,
+                        stroke: chartColors.income,
+                        strokeWidth: 2,
+                      }}
                       isAnimationActive={false}
                     />
                     <Line
@@ -410,7 +495,12 @@ function CashFlowChart({ summary }: { summary?: AnalyticsSummary }) {
                       stroke={chartColors.expense}
                       strokeWidth={2.25}
                       dot={false}
-                      activeDot={{ r: 4, fill: chartColors.surface, stroke: chartColors.expense, strokeWidth: 2 }}
+                      activeDot={{
+                        r: 4,
+                        fill: chartColors.surface,
+                        stroke: chartColors.expense,
+                        strokeWidth: 2,
+                      }}
                       isAnimationActive={false}
                     />
                   </LineChart>
@@ -449,7 +539,8 @@ function burnRateFor(summary: AnalyticsSummary | undefined, currency: string) {
   if (!summary) return null;
   const totals = summary.currencyTotals ?? [];
   const currencyTotal = totals.find((item) => item.currency === currency);
-  const value = totals.length > 1 ? currencyTotal?.burnRate : (currencyTotal?.burnRate ?? summary.burnRate);
+  const value =
+    totals.length > 1 ? currencyTotal?.burnRate : (currencyTotal?.burnRate ?? summary.burnRate);
   if (value === null || value === undefined || !Number.isFinite(value)) return null;
   return formatCurrency(value, currency);
 }
@@ -502,8 +593,11 @@ function CategoryChart() {
   }
 
   return (
-    <div className={`grid min-w-0 grid-cols-1 gap-5 ${currencies.length > 1 ? '2xl:grid-cols-2' : ''}`}>
-      {currencies.map((currency) => {
+    <div
+      className={`grid min-w-0 grid-cols-1 gap-5 ${currencies.length > 1 ? '2xl:grid-cols-2' : ''}`}
+    >
+      {currencies.map((currency, currencyIndex) => {
+        const valuesId = `category-values-${currencyIndex}`;
         const chartData = [...(categoriesByCurrency.get(currency) ?? [])]
           .sort((a, b) => b.amount - a.amount)
           .slice(0, 6);
@@ -511,8 +605,16 @@ function CategoryChart() {
         return (
           <Card key={currency} className="min-w-0">
             <CardBody className="px-5 py-5 sm:px-6 sm:py-6">
-              <SectionHeading title="Top expense categories" description={`Spending in ${currency}`} />
-              <div role="img" aria-label={`Top expense categories in ${currency}`} className="mt-4 h-[250px] min-w-0 sm:h-[290px]">
+              <SectionHeading
+                title="Top expense categories"
+                description={`Spending in ${currency}`}
+              />
+              <div
+                role="img"
+                aria-label={`Top expense categories in ${currency}`}
+                aria-describedby={valuesId}
+                className="mt-4 h-[220px] min-w-0 sm:h-[250px]"
+              >
                 <ResponsiveContainer width="100%" height="100%">
                   <BarChart
                     data={chartData}
@@ -520,11 +622,20 @@ function CategoryChart() {
                     margin={{ top: 6, right: 10, left: 0, bottom: 2 }}
                     accessibilityLayer
                   >
-                    <CartesianGrid stroke={chartColors.grid} strokeDasharray="3 6" horizontal={false} />
+                    <CartesianGrid
+                      stroke={chartColors.grid}
+                      strokeDasharray="3 6"
+                      horizontal={false}
+                    />
                     <XAxis
                       type="number"
                       tickFormatter={(value: number) => formatAxisCurrency(value, currency)}
-                      tick={{ fill: chartColors.axis, fontSize: 10, fontFamily: 'Inter, system-ui, sans-serif' }}
+                      tick={{
+                        fill: chartColors.axis,
+                        fontSize: 11,
+                        fontFamily:
+                          'system-ui, -apple-system, BlinkMacSystemFont, Segoe UI, sans-serif',
+                      }}
                       tickLine={false}
                       axisLine={false}
                     />
@@ -532,7 +643,12 @@ function CategoryChart() {
                       type="category"
                       dataKey="name"
                       width={92}
-                      tick={{ fill: chartColors.axis, fontSize: 11, fontFamily: 'Inter, system-ui, sans-serif' }}
+                      tick={{
+                        fill: chartColors.axis,
+                        fontSize: 11,
+                        fontFamily:
+                          'system-ui, -apple-system, BlinkMacSystemFont, Segoe UI, sans-serif',
+                      }}
                       tickLine={false}
                       axisLine={false}
                     />
@@ -540,13 +656,13 @@ function CategoryChart() {
                       formatter={(value) => [formatCurrency(Number(value), currency), 'Expenses']}
                       contentStyle={{
                         backgroundColor: chartColors.surface,
-                        border: `1px solid ${chartColors.grid}`,
+                        border: `1px solid ${chartColors.tooltipBorder}`,
                         borderRadius: '12px',
-                        boxShadow: '0 8px 24px rgba(15, 23, 42, 0.08)',
+                        boxShadow: chartColors.tooltipShadow,
                         color: chartColors.text,
                         fontSize: '12px',
                       }}
-                      cursor={{ fill: 'rgba(15, 118, 110, 0.06)' }}
+                      cursor={{ fill: 'rgb(var(--gl-chart-hover) / 0.08)' }}
                     />
                     <Bar
                       dataKey="amount"
@@ -559,6 +675,30 @@ function CategoryChart() {
                   </BarChart>
                 </ResponsiveContainer>
               </div>
+              <ul
+                id={valuesId}
+                aria-label={`Expense category amounts in ${currency}`}
+                className="mt-3 space-y-2 border-t border-outline-variant/80 pt-3"
+              >
+                {chartData.map((category) => (
+                  <li
+                    key={category.name}
+                    className="flex min-w-0 items-start justify-between gap-3"
+                  >
+                    <span className="flex min-w-0 items-start gap-2 text-xs leading-5 text-on-surface-variant sm:text-sm">
+                      <span
+                        aria-hidden="true"
+                        className="mt-[7px] h-2 w-2 shrink-0 rounded-full"
+                        style={{ backgroundColor: chartColors.expense }}
+                      />
+                      <span className="break-words">{category.name}</span>
+                    </span>
+                    <span className="shrink-0 whitespace-nowrap text-xs font-medium tabular-nums text-on-surface sm:text-sm">
+                      {formatCurrency(category.amount, currency)}
+                    </span>
+                  </li>
+                ))}
+              </ul>
             </CardBody>
           </Card>
         );
@@ -588,7 +728,9 @@ function RecentTransactions({ onAddTransaction }: { onAddTransaction: () => void
     <Card className="min-w-0">
       <div className="flex flex-col gap-3 border-b border-outline-variant px-5 py-5 sm:flex-row sm:items-center sm:justify-between sm:px-6">
         <div>
-          <h2 className="text-lg font-semibold tracking-[-0.02em] text-on-surface">Recent transactions</h2>
+          <h2 className="text-lg font-semibold tracking-[-0.02em] text-on-surface">
+            Recent transactions
+          </h2>
           <p className="mt-1 text-sm text-on-surface-variant">Your latest activity</p>
         </div>
         <button
@@ -628,7 +770,10 @@ function RecentTransactions({ onAddTransaction }: { onAddTransaction: () => void
                   <th scope="col" className="px-6 py-3 text-xs font-medium text-on-surface-variant">
                     Category
                   </th>
-                  <th scope="col" className="px-6 py-3 text-right text-xs font-medium text-on-surface-variant">
+                  <th
+                    scope="col"
+                    className="px-6 py-3 text-right text-xs font-medium text-on-surface-variant"
+                  >
                     Amount
                   </th>
                 </tr>
@@ -657,13 +802,20 @@ function TransactionRow({ transaction }: { transaction: Transaction }) {
   const currency = transaction.account_currency ?? 'INR';
   return (
     <tr className="transition-colors hover:bg-surface-container-low/70">
-      <td className="whitespace-nowrap px-6 py-4 text-on-surface-variant">{formatDate(transaction.date)}</td>
+      <td className="whitespace-nowrap px-6 py-4 text-on-surface-variant">
+        {formatDate(transaction.date)}
+      </td>
       <td className="max-w-[32rem] break-words px-6 py-4 font-medium text-on-surface">
         {transaction.description}
       </td>
-      <td className="px-6 py-4 text-on-surface-variant">{transaction.category_name || 'Uncategorized'}</td>
-      <td className={`whitespace-nowrap px-6 py-4 text-right font-medium tabular-nums ${positive ? 'text-primary-fixed-dim' : 'text-error'}`}>
-        {positive ? '+' : '−'}{formatCurrency(Math.abs(transaction.amount), currency)}
+      <td className="px-6 py-4 text-on-surface-variant">
+        {transaction.category_name || 'Uncategorized'}
+      </td>
+      <td
+        className={`whitespace-nowrap px-6 py-4 text-right font-medium tabular-nums ${positive ? 'text-primary-fixed-dim' : 'text-error'}`}
+      >
+        {positive ? '+' : '−'}
+        {formatCurrency(Math.abs(transaction.amount), currency)}
       </td>
     </tr>
   );
@@ -678,14 +830,19 @@ function MobileTransactionRow({ transaction }: { transaction: Transaction }) {
         <time className="text-xs text-on-surface-variant" dateTime={transaction.date}>
           {formatDate(transaction.date)}
         </time>
-        <span className={`shrink-0 text-sm font-semibold tabular-nums ${positive ? 'text-primary-fixed-dim' : 'text-error'}`}>
-          {positive ? '+' : '−'}{formatCurrency(Math.abs(transaction.amount), currency)}
+        <span
+          className={`shrink-0 text-sm font-semibold tabular-nums ${positive ? 'text-primary-fixed-dim' : 'text-error'}`}
+        >
+          {positive ? '+' : '−'}
+          {formatCurrency(Math.abs(transaction.amount), currency)}
         </span>
       </div>
       <p className="mt-2 whitespace-normal break-words text-sm font-medium text-on-surface">
         {transaction.description}
       </p>
-      <p className="mt-1 text-xs text-on-surface-variant">{transaction.category_name || 'Uncategorized'}</p>
+      <p className="mt-1 text-xs text-on-surface-variant">
+        {transaction.category_name || 'Uncategorized'}
+      </p>
     </li>
   );
 }
@@ -721,15 +878,24 @@ function UpcomingRecurring() {
     <Card>
       <CardBody className="px-5 py-5 sm:px-6 sm:py-6">
         <div className="flex items-start gap-3">
-          <CalendarDays aria-hidden="true" className="mt-0.5 h-5 w-5 shrink-0 text-primary-fixed-dim" />
-          <SectionHeading title="Upcoming recurring" description="Forecasts based on recent activity" />
+          <CalendarDays
+            aria-hidden="true"
+            className="mt-0.5 h-5 w-5 shrink-0 text-primary-fixed-dim"
+          />
+          <SectionHeading
+            title="Upcoming recurring"
+            description="Forecasts based on recent activity"
+          />
         </div>
         {items.length === 0 ? (
           <EmptyMessage title="No recurring transactions detected" />
         ) : (
           <ul className="mt-5 divide-y divide-outline-variant/80">
             {items.slice(0, 6).map((item) => (
-              <li key={`${item.merchant}-${item.lastDate}`} className="flex items-center justify-between gap-4 py-3 first:pt-0 last:pb-0">
+              <li
+                key={`${item.merchant}-${item.lastDate}`}
+                className="flex items-center justify-between gap-4 py-3 first:pt-0 last:pb-0"
+              >
                 <div className="min-w-0">
                   <p className="truncate text-sm font-medium text-on-surface">{item.merchant}</p>
                   <p className="mt-1 text-xs leading-5 text-on-surface-variant">
@@ -787,7 +953,10 @@ function LargestExpenses() {
         ) : (
           <ul className="mt-5 divide-y divide-outline-variant/80">
             {items.map((item) => (
-              <li key={item.id} className="flex items-center justify-between gap-4 py-3 first:pt-0 last:pb-0">
+              <li
+                key={item.id}
+                className="flex items-center justify-between gap-4 py-3 first:pt-0 last:pb-0"
+              >
                 <div className="min-w-0">
                   <p className="truncate text-sm font-medium text-on-surface">{item.description}</p>
                   <p className="mt-1 text-xs text-on-surface-variant">
@@ -810,7 +979,9 @@ function SectionHeading({ title, description }: { title: string; description?: s
   return (
     <div>
       <h2 className="text-base font-semibold tracking-[-0.02em] text-on-surface">{title}</h2>
-      {description && <p className="mt-1 text-xs leading-5 text-on-surface-variant">{description}</p>}
+      {description && (
+        <p className="mt-1 text-xs leading-5 text-on-surface-variant">{description}</p>
+      )}
     </div>
   );
 }
@@ -819,7 +990,11 @@ function EmptyMessage({ title, description }: { title: string; description?: str
   return (
     <div className="py-10 text-center">
       <p className="text-sm font-medium text-on-surface">{title}</p>
-      {description && <p className="mx-auto mt-1 max-w-[36ch] text-sm leading-6 text-on-surface-variant">{description}</p>}
+      {description && (
+        <p className="mx-auto mt-1 max-w-[36ch] text-sm leading-6 text-on-surface-variant">
+          {description}
+        </p>
+      )}
     </div>
   );
 }

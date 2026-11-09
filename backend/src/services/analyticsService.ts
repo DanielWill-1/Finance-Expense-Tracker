@@ -3,6 +3,11 @@ import { AccountRepository } from '../repositories/accountRepository';
 import { RecurringDetectionService, type RecurringTransaction } from './recurringDetectionService';
 
 export interface AnalyticsSummary {
+  period: {
+    startDate: string | null;
+    endDate: string | null;
+    isAllTime: boolean;
+  };
   totalIncome: number | null;
   totalExpenses: number | null;
   netSavings: number | null;
@@ -126,6 +131,11 @@ export class AnalyticsService {
     const netWorth = balanceCurrencies.size === 1 ? (netWorthByCurrency[0]?.amount ?? 0) : null;
 
     return {
+      period: {
+        startDate: startDate ?? null,
+        endDate: endDate ?? null,
+        isAllTime: !startDate && !endDate,
+      },
       totalIncome: singleCurrency?.totalIncome ?? null,
       totalExpenses: singleCurrency?.totalExpenses ?? null,
       netSavings: singleCurrency?.netSavings ?? null,

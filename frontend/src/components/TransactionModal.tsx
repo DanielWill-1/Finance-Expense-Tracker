@@ -113,14 +113,14 @@ export function TransactionModal({ onClose, editTransaction }: TransactionModalP
   const accounts = accountsRes?.data ?? [];
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-3">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-scrim/60 backdrop-blur-sm p-3">
       <div
         ref={dialogRef}
         role="dialog"
         aria-modal="true"
         aria-labelledby="transaction-dialog-title"
         tabIndex={-1}
-        className="bg-surface-container-lowest border border-outline-variant rounded-lg w-full max-w-lg max-h-[90vh] overflow-hidden flex flex-col"
+        className="bg-dialog border border-outline-variant rounded-lg w-full max-w-lg max-h-[90vh] overflow-hidden flex flex-col"
       >
         <div className="flex items-center justify-between p-6 border-b border-outline-variant/50">
           <h2 id="transaction-dialog-title" className="text-lg font-medium text-on-surface">
@@ -162,7 +162,7 @@ export function TransactionModal({ onClose, editTransaction }: TransactionModalP
                 data-dialog-initial-focus
                 value={form.date}
                 onChange={(e) => setForm({ ...form, date: e.target.value })}
-                className="w-full bg-surface-container-low border border-outline-variant rounded py-2 px-3 text-sm font-mono text-on-surface focus:border-primary-fixed-dim focus:outline-none"
+                className="w-full bg-input border border-outline-variant rounded py-2 px-3 text-sm font-mono text-on-surface focus:border-primary-fixed-dim focus:outline-none"
                 required
               />
             </div>
@@ -177,7 +177,7 @@ export function TransactionModal({ onClose, editTransaction }: TransactionModalP
                 id="transaction-type"
                 value={form.type}
                 onChange={(e) => setForm({ ...form, type: e.target.value as 'income' | 'expense' })}
-                className="w-full bg-surface-container-low border border-outline-variant rounded py-2 px-3 text-sm font-mono text-on-surface focus:border-primary-fixed-dim focus:outline-none"
+                className="w-full bg-input border border-outline-variant rounded py-2 px-3 text-sm font-mono text-on-surface focus:border-primary-fixed-dim focus:outline-none"
               >
                 <option value="expense">Expense</option>
                 <option value="income">Income</option>
@@ -197,7 +197,7 @@ export function TransactionModal({ onClose, editTransaction }: TransactionModalP
               type="text"
               value={form.description}
               onChange={(e) => setForm({ ...form, description: e.target.value })}
-              className="w-full bg-surface-container-low border border-outline-variant rounded py-2 px-3 text-sm font-mono text-on-surface focus:border-primary-fixed-dim focus:outline-none"
+              className="w-full bg-input border border-outline-variant rounded py-2 px-3 text-sm font-mono text-on-surface focus:border-primary-fixed-dim focus:outline-none"
               placeholder="e.g. Grocery store"
               required
             />
@@ -218,7 +218,7 @@ export function TransactionModal({ onClose, editTransaction }: TransactionModalP
                 min="0.01"
                 value={form.amount}
                 onChange={(e) => setForm({ ...form, amount: e.target.value })}
-                className="w-full bg-surface-container-low border border-outline-variant rounded py-2 px-3 text-sm font-mono text-on-surface focus:border-primary-fixed-dim focus:outline-none"
+                className="w-full bg-input border border-outline-variant rounded py-2 px-3 text-sm font-mono text-on-surface focus:border-primary-fixed-dim focus:outline-none"
                 placeholder="0.00"
                 required
               />
@@ -235,7 +235,7 @@ export function TransactionModal({ onClose, editTransaction }: TransactionModalP
                 type="text"
                 value={form.merchant}
                 onChange={(e) => setForm({ ...form, merchant: e.target.value })}
-                className="w-full bg-surface-container-low border border-outline-variant rounded py-2 px-3 text-sm font-mono text-on-surface focus:border-primary-fixed-dim focus:outline-none"
+                className="w-full bg-input border border-outline-variant rounded py-2 px-3 text-sm font-mono text-on-surface focus:border-primary-fixed-dim focus:outline-none"
                 placeholder="Optional"
               />
             </div>
@@ -253,7 +253,7 @@ export function TransactionModal({ onClose, editTransaction }: TransactionModalP
                 id="transaction-category"
                 value={form.categoryId}
                 onChange={(e) => setForm({ ...form, categoryId: e.target.value })}
-                className="w-full bg-surface-container-low border border-outline-variant rounded py-2 px-3 text-sm font-mono text-on-surface focus:border-primary-fixed-dim focus:outline-none"
+                className="w-full bg-input border border-outline-variant rounded py-2 px-3 text-sm font-mono text-on-surface focus:border-primary-fixed-dim focus:outline-none"
               >
                 <option value="">Uncategorized</option>
                 {categories.map((c) => (
@@ -274,7 +274,7 @@ export function TransactionModal({ onClose, editTransaction }: TransactionModalP
                 id="transaction-account"
                 value={form.accountId}
                 onChange={(e) => setForm({ ...form, accountId: e.target.value })}
-                className="w-full bg-surface-container-low border border-outline-variant rounded py-2 px-3 text-sm font-mono text-on-surface focus:border-primary-fixed-dim focus:outline-none"
+                className="w-full bg-input border border-outline-variant rounded py-2 px-3 text-sm font-mono text-on-surface focus:border-primary-fixed-dim focus:outline-none"
               >
                 <option value="">No account</option>
                 {accounts.map((a) => (
@@ -297,7 +297,7 @@ export function TransactionModal({ onClose, editTransaction }: TransactionModalP
               id="transaction-notes"
               value={form.notes}
               onChange={(e) => setForm({ ...form, notes: e.target.value })}
-              className="w-full bg-surface-container-low border border-outline-variant rounded py-2 px-3 text-sm font-mono text-on-surface focus:border-primary-fixed-dim focus:outline-none resize-none"
+              className="w-full bg-input border border-outline-variant rounded py-2 px-3 text-sm font-mono text-on-surface focus:border-primary-fixed-dim focus:outline-none resize-none"
               rows={2}
               placeholder="Optional notes"
             />

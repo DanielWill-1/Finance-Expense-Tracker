@@ -2,35 +2,141 @@
 @tailwind components;
 @tailwind utilities;
 
-:root {
+:root,
+:root[data-theme='light'] {
   color-scheme: light;
-  --gl-background: #f8fafc;
-  --gl-surface: #ffffff;
-  --gl-text: #1e293b;
-  --gl-muted: #64748b;
-  --gl-border: #e2e8f0;
-  --gl-accent: #0f766e;
-  --gl-expense: #b4534b;
-  --gl-accent-soft: #e5f3f0;
+  --gl-background: 248 250 252;
+  --gl-sidebar: 255 255 255;
+  --gl-surface: 255 255 255;
+  --gl-surface-dim: 241 245 249;
+  --gl-surface-bright: 255 255 255;
+  --gl-surface-container-lowest: 255 255 255;
+  --gl-surface-container-low: 248 250 252;
+  --gl-surface-container: 248 250 252;
+  --gl-surface-container-high: 241 245 249;
+  --gl-surface-container-highest: 226 232 240;
+  --gl-surface-variant: 241 245 249;
+  --gl-text: 30 41 59;
+  --gl-muted: 100 116 139;
+  --gl-border: 226 232 240;
+  --gl-outline: 203 213 225;
+  --gl-accent: 15 118 110;
+  --gl-accent-hover: 13 107 99;
+  --gl-accent-container: 204 251 241;
+  --gl-positive: 15 118 110;
+  --gl-expense: 180 83 75;
+  --gl-focus: 15 118 110;
+  --gl-selected: 15 118 110;
+  --gl-hover: 241 245 249;
+  --gl-input: 248 250 252;
+  --gl-dialog: 255 255 255;
+  --gl-chart-grid: 226 232 240;
+  --gl-chart-axis: 100 116 139;
+  --gl-tooltip-surface: 255 255 255;
+  --gl-tooltip-border: 226 232 240;
+  --gl-tooltip-text: 30 41 59;
+  --gl-on-accent: 255 255 255;
+  --gl-on-accent-fixed: 19 78 74;
+  --gl-on-accent-fixed-variant: 17 94 89;
+  --gl-inverse-accent: 153 246 228;
+  --gl-secondary: 71 85 105;
+  --gl-secondary-container: 241 245 249;
+  --gl-secondary-fixed: 226 232 240;
+  --gl-secondary-fixed-dim: 203 213 225;
+  --gl-on-secondary: 30 41 59;
+  --gl-on-secondary-fixed: 30 41 59;
+  --gl-on-secondary-fixed-variant: 71 85 105;
+  --gl-on-secondary-container: 71 85 105;
+  --gl-error: 180 83 75;
+  --gl-error-container: 254 243 242;
+  --gl-on-error: 255 255 255;
+  --gl-on-error-container: 122 39 26;
+  --gl-inverse-surface: 30 41 59;
+  --gl-inverse-on-surface: 248 250 252;
+  --gl-scrim: 15 23 42;
+  --gl-scrollbar-thumb: 203 213 225;
+  --gl-scrollbar-thumb-hover: 148 163 184;
+  --gl-chart-hover: 15 118 110;
+  --gl-floating-shadow: 0 8px 24px rgb(15 23 42 / 0.1);
+  --gl-mobile-nav-shadow: 0 -4px 16px rgb(15 23 42 / 0.05);
+  --gl-tooltip-shadow: 0 8px 24px rgb(15 23 42 / 0.1);
+}
+
+:root[data-theme='dark'] {
+  color-scheme: dark;
+  --gl-background: 17 24 39;
+  --gl-sidebar: 21 31 46;
+  --gl-surface: 27 38 54;
+  --gl-surface-dim: 17 24 39;
+  --gl-surface-bright: 36 50 68;
+  --gl-surface-container-lowest: 27 38 54;
+  --gl-surface-container-low: 21 31 46;
+  --gl-surface-container: 27 38 54;
+  --gl-surface-container-high: 36 50 68;
+  --gl-surface-container-highest: 51 65 85;
+  --gl-surface-variant: 36 50 68;
+  --gl-text: 241 245 249;
+  --gl-muted: 168 181 197;
+  --gl-border: 51 65 85;
+  --gl-outline: 71 85 105;
+  --gl-accent: 45 212 191;
+  --gl-accent-hover: 94 234 212;
+  --gl-accent-container: 19 78 74;
+  --gl-positive: 45 212 191;
+  --gl-expense: 253 162 155;
+  --gl-focus: 45 212 191;
+  --gl-selected: 45 212 191;
+  --gl-hover: 36 50 68;
+  --gl-input: 21 31 46;
+  --gl-dialog: 27 38 54;
+  --gl-chart-grid: 51 65 85;
+  --gl-chart-axis: 168 181 197;
+  --gl-tooltip-surface: 36 50 68;
+  --gl-tooltip-border: 71 85 105;
+  --gl-tooltip-text: 241 245 249;
+  --gl-on-accent: 4 47 46;
+  --gl-on-accent-fixed: 204 251 241;
+  --gl-on-accent-fixed-variant: 153 246 228;
+  --gl-inverse-accent: 15 118 110;
+  --gl-secondary: 203 213 225;
+  --gl-secondary-container: 36 50 68;
+  --gl-secondary-fixed: 51 65 85;
+  --gl-secondary-fixed-dim: 71 85 105;
+  --gl-on-secondary: 17 24 39;
+  --gl-on-secondary-fixed: 241 245 249;
+  --gl-on-secondary-fixed-variant: 203 213 225;
+  --gl-on-secondary-container: 203 213 225;
+  --gl-error: 253 162 155;
+  --gl-error-container: 81 38 40;
+  --gl-on-error: 59 20 24;
+  --gl-on-error-container: 254 228 226;
+  --gl-inverse-surface: 241 245 249;
+  --gl-inverse-on-surface: 17 24 39;
+  --gl-scrim: 3 7 18;
+  --gl-scrollbar-thumb: 71 85 105;
+  --gl-scrollbar-thumb-hover: 100 116 139;
+  --gl-chart-hover: 45 212 191;
+  --gl-floating-shadow: 0 8px 24px rgb(0 0 0 / 0.24);
+  --gl-mobile-nav-shadow: 0 -4px 16px rgb(0 0 0 / 0.2);
+  --gl-tooltip-shadow: 0 8px 24px rgb(0 0 0 / 0.24);
 }
 
 @layer base {
   * {
-    border-color: var(--gl-border);
+    border-color: rgb(var(--gl-border));
   }
 
   html {
     min-width: 320px;
-    background: var(--gl-background);
+    background: rgb(var(--gl-background));
   }
 
   body {
     min-width: 320px;
     min-height: 100vh;
-    background-color: var(--gl-background);
-    color: var(--gl-text);
+    background-color: rgb(var(--gl-background));
+    color: rgb(var(--gl-text));
     font-family:
-      Inter,
       ui-sans-serif,
       system-ui,
       -apple-system,
@@ -40,13 +146,26 @@
     line-height: 1.5;
   }
 
+  button,
+  input,
+  select,
+  textarea {
+    caret-color: rgb(var(--gl-accent));
+  }
+
+  input,
+  select,
+  textarea {
+    color-scheme: inherit;
+  }
+
   ::selection {
-    color: #134e4a;
-    background: var(--gl-accent-soft);
+    color: rgb(var(--gl-on-accent-fixed));
+    background: rgb(var(--gl-accent-container));
   }
 
   :focus-visible {
-    outline: 2px solid var(--gl-accent);
+    outline: 2px solid rgb(var(--gl-focus));
     outline-offset: 2px;
   }
 
@@ -60,12 +179,12 @@
   }
 
   ::-webkit-scrollbar-thumb {
-    background: #cbd5e1;
+    background: rgb(var(--gl-scrollbar-thumb));
     border-radius: 999px;
   }
 
   ::-webkit-scrollbar-thumb:hover {
-    background: #94a3b8;
+    background: rgb(var(--gl-scrollbar-thumb-hover));
   }
 }
 

@@ -12,7 +12,7 @@ export default function App() {
     <Suspense
       fallback={
         <div
-          className="flex min-h-screen items-center justify-center text-sm text-[#94a3b8]"
+          className="flex min-h-screen items-center justify-center bg-background text-sm text-on-surface-variant"
           role="status"
         >
           Loading page…

@@ -386,7 +386,7 @@ export default function Assistant() {
               </button>
             ))}
           </div>
-          <div className="flex items-end rounded border border-outline-variant bg-surface-container-lowest shadow-[0_4px_24px_rgba(0,0,0,0.5)] transition-colors focus-within:border-primary-fixed-dim">
+          <div className="flex items-end rounded border border-outline-variant bg-surface-container-lowest shadow-floating transition-colors focus-within:border-primary-fixed-dim">
             <textarea
               value={input}
               onChange={(event) => setInput(event.target.value)}
@@ -406,7 +406,7 @@ export default function Assistant() {
                 type="button"
                 onClick={stop}
                 aria-label="Stop assistant response"
-                className="mb-2 mr-2 flex h-10 w-10 shrink-0 items-center justify-center rounded bg-error text-white transition-colors hover:bg-error/80"
+                className="mb-2 mr-2 flex h-10 w-10 shrink-0 items-center justify-center rounded bg-error text-on-error transition-colors hover:bg-error/80"
               >
                 <Square className="h-4 w-4 fill-current" aria-hidden="true" />
               </button>

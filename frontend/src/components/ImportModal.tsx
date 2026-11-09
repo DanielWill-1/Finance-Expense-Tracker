@@ -167,14 +167,14 @@ export function ImportModal({ onClose, initialFile }: ImportModalProps) {
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-3">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-scrim/60 backdrop-blur-sm p-3">
       <div
         ref={dialogRef}
         role="dialog"
         aria-modal="true"
         aria-labelledby="import-dialog-title"
         tabIndex={-1}
-        className="bg-surface-container-lowest border border-outline-variant rounded-lg w-full max-w-4xl max-h-[90vh] overflow-hidden flex flex-col"
+        className="bg-dialog border border-outline-variant rounded-lg w-full max-w-4xl max-h-[90vh] overflow-hidden flex flex-col"
       >
         <div className="flex items-center justify-between p-6 border-b border-outline-variant/50">
           <h2 id="import-dialog-title" className="text-lg font-medium text-on-surface">
@@ -263,7 +263,7 @@ export function ImportModal({ onClose, initialFile }: ImportModalProps) {
                 <select
                   value={accountId}
                   onChange={(e) => setAccountId(e.target.value)}
-                  className="rounded border border-outline-variant bg-surface-container-low px-3 py-2 text-on-surface"
+                  className="rounded border border-outline-variant bg-input px-3 py-2 text-on-surface"
                 >
                   <option value="">No account</option>
                   {(accountsRes?.data ?? []).map((account) => (
@@ -353,7 +353,7 @@ export function ImportModal({ onClose, initialFile }: ImportModalProps) {
                                 },
                               })
                             }
-                            className="mt-1 w-full rounded border border-outline-variant bg-surface-container-low px-2 py-1 text-xs text-on-surface"
+                            className="mt-1 w-full rounded border border-outline-variant bg-input px-2 py-1 text-xs text-on-surface"
                           >
                             <option value="">Uncategorized</option>
                             {(categoriesRes?.data ?? [])
